@@ -1,0 +1,32 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit/local runtime
+.streamlit/secrets.toml
+.mplconfig/
+.cache/
+
+# Generated reports and charts
+reports/*
+!reports/.gitkeep
+
+# Local environment files and secrets
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+agri_data_trust_deploy*
