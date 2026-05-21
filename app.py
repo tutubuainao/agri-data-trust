@@ -7,7 +7,7 @@ import streamlit as st
 
 from src.loader import load_data
 from src.profiler import profile_data
-from src.report import generate_html_report, generate_markdown_report
+from src.report import generate_html_report
 from src.scoring import run_full_analysis, sub_scores_dataframe
 
 
@@ -70,8 +70,7 @@ if not profile.numeric_columns:
 
 with st.spinner("正在执行五类可信度检测..."):
     analysis = run_full_analysis(prepared, profile.numeric_columns, REPORTS_DIR)
-    markdown_path = generate_markdown_report(analysis, profile, source_name or "uploaded_data", REPORTS_DIR)
-    html_path = generate_html_report(markdown_path)
+    html_path = generate_html_report(analysis, profile, source_name or "uploaded_data", REPORTS_DIR)
 
 st.subheader("总体结果")
 score_col, risk_col = st.columns(2)
@@ -105,7 +104,5 @@ for chart in analysis["correlation"].get("charts", []):
     st.image(chart)
 
 st.subheader("检测报告")
-st.write(f"Markdown 报告：`{markdown_path}`")
 st.write(f"HTML 报告：`{html_path}`")
-st.download_button("下载 Markdown 报告", markdown_path.read_text(encoding="utf-8"), file_name=markdown_path.name)
 st.download_button("下载 HTML 报告", html_path.read_text(encoding="utf-8"), file_name=html_path.name, mime="text/html")

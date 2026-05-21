@@ -79,6 +79,7 @@ fi
 .venv/bin/pip install -r requirements.txt -i "$PIP_INDEX_URL" --timeout 120
 
 mkdir -p reports .mplconfig .cache
+find reports -maxdepth 1 -type f -name '*.md' -delete
 
 cat >/etc/systemd/system/agri-data-trust.service <<'SERVICE'
 [Unit]
