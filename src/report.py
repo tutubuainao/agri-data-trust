@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .profiler import DataProfile
 from .scoring import sub_scores_dataframe
+from .screening import ColumnScreening
 
 
 def _format_metric_value(value: object) -> str:
@@ -28,11 +29,55 @@ def _chart_img(chart: str, alt: str) -> str:
     return f"<img src=\"{escape(Path(chart).name)}\" alt=\"{escape(alt)}\">"
 
 
+def _screening_table(records: list[ColumnScreening] | None) -> str:
+    if not records:
+        return ""
+    rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(item.column)}</td>
+          <td>{escape(item.raw_dtype)}</td>
+          <td>{escape(item.role)}</td>
+          <td>{"是" if item.entered_analysis else "否"}</td>
+          <td>{item.non_null_count}</td>
+          <td>{item.missing_rate:.2%}</td>
+          <td>{item.unique_count}</td>
+          <td>{item.numeric_valid_rate:.2%}</td>
+          <td>{item.datetime_valid_rate:.2%}</td>
+          <td>{escape(item.handling)}</td>
+        </tr>
+        """
+        for item in records
+    )
+    return f"""
+    <h2>文件粗筛</h2>
+    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入五类可信度检测。</p>
+    <table>
+      <thead>
+        <tr>
+          <th>列名</th>
+          <th>原始类型</th>
+          <th>粗筛角色</th>
+          <th>进入检测</th>
+          <th>非空数</th>
+          <th>缺失率</th>
+          <th>唯一值数</th>
+          <th>数值可解析率</th>
+          <th>时间可解析率</th>
+          <th>处理方式</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    """
+
+
 def generate_html_report(
     analysis: dict,
     profile: DataProfile,
     source_name: str,
     reports_dir: Path,
+    screening_records: list[ColumnScreening] | None = None,
 ) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -121,6 +166,8 @@ def generate_html_report(
       <tr><th>缺失率</th><td>{profile.missing_rate:.2%}</td></tr>
     </tbody>
   </table>
+
+  {_screening_table(screening_records)}
 
   <h2>指标评分</h2>
   {score_table}

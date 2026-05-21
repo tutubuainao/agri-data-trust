@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -26,7 +27,9 @@ def detect_time_column(df: pd.DataFrame) -> str | None:
         numeric_like = pd.to_numeric(series, errors="coerce").notna().mean() >= 0.8
         if numeric_like and not name_hint:
             continue
-        parsed = pd.to_datetime(series, errors="coerce")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            parsed = pd.to_datetime(series, errors="coerce")
         valid_rate = parsed.notna().mean()
         monotonic = parsed.dropna().is_monotonic_increasing
         score = valid_rate + (0.25 if monotonic else 0.0) + (0.2 if name_hint else 0.0)
@@ -53,7 +56,9 @@ def detect_numeric_columns(df: pd.DataFrame, time_column: str | None = None) -> 
 def prepare_dataframe(df: pd.DataFrame, time_column: str | None, numeric_columns: list[str]) -> pd.DataFrame:
     out = df.copy()
     if time_column:
-        out[time_column] = pd.to_datetime(out[time_column], errors="coerce")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            out[time_column] = pd.to_datetime(out[time_column], errors="coerce")
         out = out.sort_values(time_column)
     for col in numeric_columns:
         out[col] = pd.to_numeric(out[col], errors="coerce")

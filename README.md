@@ -6,10 +6,12 @@
 
 - 支持上传 CSV、XLSX、XLS 文件
 - 自动识别时间列和数值列；没有时间列时按原始行顺序分析
+- 上传后先执行文件粗筛，解释常量列、文本列、日期列和缺失列的处理方式
 - 对每个数值列执行四类单变量检测
 - 对所有数值列执行多变量相关性检测
 - 输出 0-100 总可信度评分、五项子评分、风险等级和解释
 - 生成 HTML 检测报告
+- 提供“评分标准与实现原理”说明页，解释评分等级、公式、依赖库和缺失值处理规则
 - 输出趋势图、ACF 图、尾数分布图、异常点扫描图和相关性热力图
 
 ## 五类指标
@@ -80,9 +82,12 @@ agri-data-trust/
 ├── data/
 │   ├── sample_real.csv
 │   └── sample_fake.csv
+├── pages/
+│   └── 01_methodology.py
 ├── src/
 │   ├── loader.py
 │   ├── profiler.py
+│   ├── screening.py
 │   ├── smoothness.py
 │   ├── timeseries.py
 │   ├── digit_analysis.py
@@ -90,6 +95,7 @@ agri-data-trust/
 │   ├── correlation.py
 │   ├── scoring.py
 │   ├── report.py
+│   ├── ui.py
 │   └── utils.py
 └── reports/
 ```
