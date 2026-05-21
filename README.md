@@ -53,16 +53,16 @@ streamlit run app.py
 
 ## GitHub 同步
 
-项目已准备 `.gitignore`，会排除虚拟环境、运行报告、缓存和本地密钥文件。建议先使用 GitHub 私有仓库同步代码；日常流程为：
+项目已同步到 GitHub 私有仓库：
+
+```text
+https://github.com/tutubuainao/agri-data-trust
+```
+
+项目已准备 `.gitignore`，会排除虚拟环境、运行报告、缓存和本地密钥文件。当前本地仓库已配置专用 SSH Deploy key，日常流程为：
 
 ```text
 本地改代码 → 本地测试 → git commit → git push → ./deploy.sh
-```
-
-第一次同步前，如果本机 `git` 被 Xcode license 拦住，需要先在终端执行一次：
-
-```bash
-sudo xcodebuild -license
 ```
 
 ## 示例数据
