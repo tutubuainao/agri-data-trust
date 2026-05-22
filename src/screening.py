@@ -7,6 +7,7 @@ import pandas as pd
 
 from .profiler import DataProfile
 from .profiler import is_identifier_column
+from .loader import SHEET_COLUMN
 
 
 @dataclass
@@ -62,6 +63,10 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
             role = "空列"
             entered = False
             handling = "整列为空，不进入可信度指标计算；在数据概况中体现为缺失。"
+        elif col == SHEET_COLUMN:
+            role = "Sheet 来源列"
+            entered = False
+            handling = "该列由系统在合并多 sheet 时自动添加，用于记录每一行来自哪个 sheet；只用于溯源展示，不进入可信度评分。"
         elif is_identifier_column(col):
             role = "编号/代码列"
             entered = False

@@ -287,6 +287,10 @@ main {
   --risk-color: var(--teal);
 }
 
+.risk-blocked {
+  --risk-color: var(--red);
+}
+
 .panel-top {
   display: flex;
   gap: 8px;
@@ -334,6 +338,12 @@ main {
   line-height: 1;
 }
 
+.score-ring strong.score-text-small {
+  max-width: 112px;
+  font-size: 1.48rem;
+  line-height: 1.18;
+}
+
 .score-core span,
 .score-core em,
 .score-orbit p,
@@ -357,6 +367,17 @@ main {
   display: grid;
   gap: 16px;
   margin-top: 28px;
+}
+
+.no-data-warning {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 122, 122, 0.42);
+  border-radius: 10px;
+  color: var(--red);
+  background: rgba(255, 122, 122, 0.1);
+  line-height: 1.6;
+  font-weight: 800;
 }
 
 .mini-bars div {
@@ -617,16 +638,80 @@ th {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.chart-grid img {
-  width: 100%;
-  height: auto;
+.section-desc {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.chart-card {
+  position: relative;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--chart-bg);
+  overflow: hidden;
+}
+
+.chart-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-card figcaption {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.chart-card figcaption b,
+.chart-card figcaption span {
+  display: block;
+}
+
+.chart-card figcaption span {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.62;
+  font-size: 0.9rem;
 }
 
 .empty-message {
   color: var(--muted);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(10px);
+}
+
+.alert-modal {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.alert-modal h2 {
+  margin: 10px 0;
+}
+
+.alert-modal p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.modal-action {
+  width: 100%;
+  margin-top: 14px;
 }
 
 .method-wrap {
@@ -685,6 +770,33 @@ th {
 
 .formula-box p {
   margin: 8px 0 0;
+}
+
+.compact-formula {
+  margin: 14px 0 18px;
+}
+
+.compact-formula p:not(.formula) {
+  color: var(--muted);
+  line-height: 1.72;
+}
+
+.symbol-list {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px 14px;
+  margin: 16px 0 0;
+}
+
+.symbol-list dt {
+  color: var(--green);
+  font-weight: 900;
+}
+
+.symbol-list dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.72;
 }
 
 .method-list {
@@ -769,7 +881,8 @@ th {
   .chart-grid,
   .method-grid,
   .method-columns,
-  .method-list div {
+  .method-list div,
+  .symbol-list {
     grid-template-columns: 1fr;
   }
 

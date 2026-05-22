@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/styles.css?v=20260522c">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -86,7 +86,18 @@
             <li>滚动方差：对窗口内数据计算 <code>Var(x_{t-w:t})</code>，若长期接近 0，说明波动不足。</li>
             <li>变化率稳定性：<code>r_t = d_t / (|x_{t-1}| + epsilon)</code>，若标准差极小，提示机械生成风险。</li>
           </ul>
-          <p>得分逻辑：差分、滚动方差和变化率越自然，得分越高；长期零波动、固定步长、二阶差分接近 0 的比例越高，得分越低。</p>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>平滑</sub> = max(0, 100 - P<sub>diff</sub> - P<sub>cv</sub> - P<sub>second</sub> - P<sub>roll</sub> - P<sub>rate</sub>)</p>
+            <p>当前版本使用连续扣分：每个 P 都有一个风险起点和一个极端点，刚超过风险起点时只扣少量分，越接近极端点扣分越多，到极端点才扣满。单列得分取 0-100，多个数值列取平均。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>diff</sub></dt><dd>一阶差分幅度扣分。计算 <code>Rdiff = mean(|d_t|) / (max(x)-min(x))</code>。当 <code>Rdiff >= 0.025</code> 时扣 0；当 <code>Rdiff</code> 从 0.025 降到 0 时，扣分从 0 连续增加到 28，公式为 <code>28 × (0.025 - Rdiff) / 0.025</code>。</dd>
+              <dt>P<sub>cv</sub></dt><dd>差分变异系数扣分。计算 <code>CVdiff = std(d_t) / (|mean(d_t)| + epsilon)</code>。当 <code>CVdiff >= 0.35</code> 时扣 0；当它从 0.35 降到 0 时，扣分从 0 连续增加到 24。</dd>
+              <dt>P<sub>second</sub></dt><dd>二阶差分扣分。计算 <code>a_t = d_t - d_{t-1}</code> 和 <code>Rsecond = std(a_t) / (max(x)-min(x))</code>。当 <code>Rsecond >= 0.001</code> 时扣 0；当它从 0.001 降到 0 时，扣分从 0 连续增加到 24。</dd>
+              <dt>P<sub>roll</sub></dt><dd>滚动方差扣分。统计低 rolling variance 窗口占比 <code>Rroll</code>。当 <code>Rroll <= 0.45</code> 时扣 0；当它从 0.45 升到 1 时，扣分从 0 连续增加到 16。</dd>
+              <dt>P<sub>rate</sub></dt><dd>变化率稳定性扣分。计算 <code>r_t = d_t / (|x_{t-1}| + epsilon)</code> 的标准差 <code>Rrate</code>。当 <code>Rrate >= 0.01</code> 时扣 0；当它从 0.01 降到 0 时，扣分从 0 连续增加到 12。</dd>
+            </dl>
+          </div>
         </details>
 
         <details>
@@ -98,7 +109,17 @@
             <li>趋势变化：用一阶差分符号变化率判断趋势是否过于单调或过度频繁反转。</li>
             <li>周期性线索：观察 ACF 峰值是否显示合理周期，例如温度、湿度常见日周期。</li>
           </ul>
-          <p>得分逻辑：存在适度时间相关、趋势变化合理、ACF 不极端时得分较高；完全无相关、过度规则周期或长期单调直线会降低得分。</p>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>时序</sub> = max(0, 100 - P<sub>acf1</sub> - P<sub>sign</sub> - P<sub>trend</sub> - P<sub>acf-high</sub>)</p>
+            <p>当前版本使用连续扣分：自相关越接近极端、趋势变化越少、线性趋势越强，扣分越多。接近阈值时只轻微扣分，极端情况才扣满。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>acf1</sub></dt><dd>一阶自相关扣分。计算 <code>A1 = corr(x_t, x_{t-1})</code>。当 <code>A1</code> 从 0.98 升到 1 时，正相关扣分从 0 连续增加到 22；当 <code>A1</code> 从 -0.2 降到 -1 时，负相关扣分从 0 连续增加到 10。</dd>
+              <dt>P<sub>sign</sub></dt><dd>趋势方向变化扣分。统计差分正负号变化率 <code>Rsign</code>。当 <code>Rsign >= 0.08</code> 时扣 0；当它从 0.08 降到 0 时，扣分从 0 连续增加到 20。</dd>
+              <dt>P<sub>trend</sub></dt><dd>线性趋势扣分。计算样本序号 <code>t</code> 与数值 <code>x_t</code> 的相关强度 <code>T</code>，同时参考 <code>Rsign</code>。只有在 <code>T > 0.97</code> 且趋势反转偏少时扣分；<code>T</code> 越接近 1、<code>Rsign</code> 越接近 0，扣分越接近 18。</dd>
+              <dt>P<sub>acf-high</sub></dt><dd>高阶自相关结构扣分。计算 lag 2 之后 ACF 绝对值最大值 <code>Ahigh</code>。当 <code>Ahigh >= 0.05</code> 时扣 0；当它从 0.05 降到 0 时，扣分从 0 连续增加到 10。</dd>
+            </dl>
+          </div>
         </details>
 
         <details>
@@ -111,7 +132,18 @@
             <li>重复值比例：统计众数占比和连续重复长度。</li>
             <li>固定步长：观察相邻差分是否频繁落在同一个值。</li>
           </ul>
-          <p>得分逻辑：小数位和尾数分布越均衡，得分越高；整数比例异常高、尾数高度集中、重复值过多或固定步长明显会降低得分。</p>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>数字</sub> = max(0, 100 - P<sub>int</sub> - P<sub>decimal</sub> - P<sub>tail</sub> - P<sub>round</sub> - P<sub>dup</sub>)</p>
+            <p>当前版本使用连续扣分：数字规律越集中，扣分越多；刚超过阈值时只是轻微风险，接近 100% 集中时才扣满。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>int</sub></dt><dd>整数比例扣分。统计整数比例 <code>Rint</code>。当 <code>Rint <= 0.75</code> 时扣 0；当它从 0.75 升到 1 时，扣分从 0 连续增加到 24。</dd>
+              <dt>P<sub>decimal</sub></dt><dd>小数位集中扣分。统计最常见小数位占比 <code>Rdecimal</code>。当 <code>Rdecimal <= 0.90</code> 时扣 0；当它从 0.90 升到 1 时，扣分从 0 连续增加到 20。</dd>
+              <dt>P<sub>tail</sub></dt><dd>尾数集中扣分。统计最常见尾数占比 <code>Rtail</code>。当 <code>Rtail <= 0.35</code> 时扣 0；当它从 0.35 升到 1 时，扣分从 0 连续增加到 18。</dd>
+              <dt>P<sub>round</sub></dt><dd>固定刻度扣分。统计落在 0.05 整数倍上的比例 <code>Rround</code>。当 <code>Rround <= 0.80</code> 时扣 0；当它从 0.80 升到 1 时，扣分从 0 连续增加到 16。</dd>
+              <dt>P<sub>dup</sub></dt><dd>重复值扣分。计算重复比例 <code>Rdup = 1 - 唯一值数量 / 有效样本数</code>。当 <code>Rdup <= 0.45</code> 时扣 0；当它从 0.45 升到 1 时，扣分从 0 连续增加到 12。</dd>
+            </dl>
+          </div>
         </details>
 
         <details>
@@ -123,7 +155,17 @@
             <li>IsolationForest：使用 <code>scikit-learn</code> 对单列数值进行无监督异常检测。</li>
             <li>异常比例：统计异常点占比是否过低或过高。</li>
           </ul>
-          <p>得分逻辑：少量异常且分布合理时得分较高；异常过多说明数据波动失控，完全没有异常也会触发轻度可疑提示。</p>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>异常</sub> = max(0, 100 - P<sub>none</sub> - P<sub>many</sub> - P<sub>few</sub> - P<sub>cv</sub>)</p>
+            <p>当前版本使用连续扣分：异常点太少或太多都会增加风险，越接近极端情况扣分越多。“没有异常”不会被当成更好，而是作为可能过度清洗的线索。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>none</sub></dt><dd>自然异常不足扣分。计算 z-score 和 IQR 检出的最大异常比例 <code>Rnatural</code>。当 <code>Rnatural >= 0.02</code> 时扣 0；当它从 0.02 降到 0 时，扣分从 0 连续增加到 28。</dd>
+              <dt>P<sub>many</sub></dt><dd>异常过多扣分。综合 z-score、IQR 和 IsolationForest 的最大异常比例 <code>Rout</code>。当 <code>Rout <= 0.25</code> 时扣 0；当它从 0.25 升到 1 时，扣分从 0 连续增加到 24。</dd>
+              <dt>P<sub>few</sub></dt><dd>异常过少扣分。样本量足够时，如果综合异常比例 <code>Rout</code> 低于 0.02，会从 0.02 到 0 连续扣 0-10 分，用于提示可能过度清洗。</dd>
+              <dt>P<sub>cv</sub></dt><dd>整体变异不足扣分。计算 <code>CV = std(x) / (|mean(x)| + epsilon)</code>。当 <code>CV >= 0.005</code> 时扣 0；当它从 0.005 降到 0 时，扣分从 0 连续增加到 16。</dd>
+            </dl>
+          </div>
         </details>
 
         <details>
@@ -135,7 +177,16 @@
             <li>相关矩阵：对所有合格数值列两两计算，并生成热力图。</li>
             <li>高相关阈值：若多个变量绝对相关系数接近 1，需要提示人工复核。</li>
           </ul>
-          <p>得分逻辑：变量间存在合理相关但不完美时得分较高；大量接近 1 或 -1 的相关关系、重复列、线性派生列会降低得分。</p>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>相关</sub> = max(0, 100 - P<sub>perfect</sub> - P<sub>high</sub> - P<sub>avg</sub>)</p>
+            <p>当前版本使用连续扣分：相关系数越接近 1 或 -1，扣分越多；只有近乎完美相关时才扣满。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>perfect</sub></dt><dd>近乎完美相关扣分。计算所有变量对的 Pearson/Spearman 最大绝对相关 <code>Cmax</code>。当 <code>Cmax <= 0.999</code> 时扣 0；当它从 0.999 升到 1 时，扣分从 0 连续增加到 35。</dd>
+              <dt>P<sub>high</sub></dt><dd>过强相关扣分。仍使用 <code>Cmax</code>。当 <code>Cmax <= 0.99</code> 时扣 0；当它从 0.99 升到 0.999 时，扣分从 0 连续增加到 14。</dd>
+              <dt>P<sub>avg</sub></dt><dd>整体同步扣分。计算全部变量对 Pearson 绝对值平均数 <code>Cavg</code>。变量对不少于 3 时，若 <code>Cavg</code> 从 0.96 升到 1，扣分从 0 连续增加到 18。</dd>
+            </dl>
+          </div>
         </details>
       </div>
     </section>
@@ -158,6 +209,6 @@
       <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、漂移检测或深度异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js"></script>
+  <script src="assets/theme.js?v=20260522c"></script>
 </body>
 </html>

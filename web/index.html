@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260522">
+  <link rel="stylesheet" href="assets/styles.css?v=20260522c">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -42,8 +42,9 @@
           <div class="status-line" :class="{error: error}">
             <span v-if="loading">正在分析数据，请稍候...</span>
             <span v-else-if="error">{{ error }}</span>
-            <span v-else-if="result">已完成：{{ result.source_name }}</span>
-            <span v-else>支持 CSV、XLSX、XLS。文件不会被判断“真假”，只输出风险线索。</span>
+            <span v-else-if="result && result.ok">已完成：{{ result.source_name }}</span>
+            <span v-else-if="result">粗筛完成：未识别到可分析的数值列</span>
+            <span v-else>请上传数据开始分析。支持 CSV、XLSX、XLS；系统只输出风险线索，不判断“真假”。</span>
           </div>
         </div>
 
@@ -55,7 +56,7 @@
             <div class="score-ring" :style="scoreStyle">
               <div class="score-core">
                 <span>可信度评分</span>
-                <strong>{{ totalScore }}</strong>
+                <strong :class="{'score-text-small': result && !result.ok}">{{ totalScore }}</strong>
                 <em>满分 100</em>
               </div>
             </div>
@@ -64,6 +65,9 @@
               <h2>{{ riskLevel }}</h2>
               <small>{{ scoreSubtitle }}</small>
             </div>
+          </div>
+          <div v-if="result && !result.ok" class="no-data-warning">
+            未识别到可分析的数值列。请检查数据是否包含足够的连续数值字段后重新提交。
           </div>
           <div class="mini-bars">
             <div v-for="item in subScoreItems" :key="item.key">
@@ -105,8 +109,7 @@
 
       <section v-if="result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length" class="glass-section sheet-note">
         <span class="section-title">Excel Sheet 处理</span>
-        <p v-if="result.profile.used_sheets.length">已合并分析：{{ result.profile.used_sheets.join('、') }}</p>
-        <p v-if="result.profile.skipped_sheets.length">已跳过空 sheet：{{ result.profile.skipped_sheets.join('、') }}</p>
+        <p>{{ sheetMergeText }}</p>
       </section>
 
       <section v-if="result?.ok" class="workspace">
@@ -189,10 +192,17 @@
               <div>
                 <span class="section-title">图表输出</span>
                 <h2>风险图谱与相关性热力图</h2>
+                <p class="section-desc">鼠标悬停在图表上可以查看用途说明。图表用于辅助复核风险线索，不单独作为真假判定依据。</p>
               </div>
             </div>
             <div class="chart-grid">
-              <img v-for="chart in chartUrls" :key="chart" :src="chart" alt="检测图表">
+              <figure v-for="chart in chartItems" :key="chart.url" class="chart-card">
+                <img :src="chart.url" :alt="chart.title">
+                <figcaption>
+                  <b>{{ chart.title }}</b>
+                  <span>{{ chart.description }}</span>
+                </figcaption>
+              </figure>
             </div>
           </section>
         </div>
@@ -215,10 +225,18 @@
         </div>
       </section>
     </main>
+    <div v-if="alertMessage" class="modal-backdrop" @click.self="clearAlert">
+      <div class="alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="alert-title">
+        <span class="section-title">文件粗筛提醒</span>
+        <h2 id="alert-title">未识别到可分析的数值列</h2>
+        <p>{{ alertMessage }}</p>
+        <button class="primary-action modal-action" type="button" @click="clearAlert">我知道了</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260522"></script>
-  <script src="assets/app.js?v=20260522"></script>
+  <script src="assets/theme.js?v=20260522c"></script>
+  <script src="assets/app.js?v=20260522c"></script>
 </body>
 </html>

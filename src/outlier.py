@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
-from .utils import clamp_score, clean_numeric, save_line_plot
+from .utils import clamp_score, clean_numeric, ramp_down_penalty, ramp_up_penalty, save_line_plot
 
 
 def analyze_outliers(series: pd.Series, reports_dir: Path) -> dict:
@@ -28,25 +28,28 @@ def analyze_outliers(series: pd.Series, reports_dir: Path) -> dict:
     combined_rate = max(z_outlier_rate, iqr_outlier_rate, isolation_rate)
     natural_rule_rate = max(z_outlier_rate, iqr_outlier_rate)
 
-    penalty = 0.0
+    variation_cv = std / (abs(mean) + 1e-9)
+    penalty_parts = {
+        "no_natural_outlier_penalty": ramp_down_penalty(natural_rule_rate, 0.02, 0.0, 28),
+        "many_outlier_penalty": ramp_up_penalty(combined_rate, 0.25, 1.0, 24),
+        "few_outlier_penalty": ramp_down_penalty(combined_rate, 0.02, 0.0, 10) if len(values) >= 50 else 0.0,
+        "low_cv_penalty": ramp_down_penalty(variation_cv, 0.005, 0.0, 16),
+    }
+    penalty = sum(penalty_parts.values())
     reasons: list[str] = []
-    if natural_rule_rate == 0:
-        penalty += 28
+    if penalty_parts["no_natural_outlier_penalty"] > 0:
         reasons.append("z-score 和 IQR 均未检测到自然异常波动；长期完全规整也可能可疑。")
-    elif combined_rate > 0.25:
-        penalty += 24
+    elif penalty_parts["many_outlier_penalty"] > 0:
         reasons.append("异常点比例偏高，可能存在采集故障、录入错误或拼接数据。")
-    elif combined_rate < 0.02 and len(values) >= 50:
-        penalty += 10
+    elif penalty_parts["few_outlier_penalty"] > 0:
         reasons.append("异常波动很少，需结合业务场景确认是否过度清洗。")
     else:
         reasons.append("异常点比例处于可解释范围，存在一定自然波动。")
 
-    if std / (abs(mean) + 1e-9) < 0.005:
-        penalty += 16
+    if penalty_parts["low_cv_penalty"] > 0:
         reasons.append("整体变异系数极低，异常波动不足。")
 
-    chart = save_line_plot(values, f"Outlier scan - {series.name}", reports_dir, f"outlier_{series.name}")
+    chart = save_line_plot(values, f"异常点扫描 - {series.name}", reports_dir, f"outlier_{series.name}")
     return {
         "score": clamp_score(100 - penalty),
         "risk": "ok" if penalty < 30 else "attention",
@@ -57,6 +60,8 @@ def analyze_outliers(series: pd.Series, reports_dir: Path) -> dict:
             "isolation_forest_rate": round(isolation_rate, 4),
             "combined_outlier_rate": round(combined_rate, 4),
             "natural_rule_outlier_rate": round(natural_rule_rate, 4),
+            "variation_cv": round(variation_cv, 4),
+            **{key: round(value, 4) for key, value in penalty_parts.items()},
         },
         "charts": [chart] if chart else [],
     }
