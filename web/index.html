@@ -122,6 +122,30 @@
         </aside>
 
         <div class="content-stack">
+          <section v-if="previewRows.length" class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">数据预览</span>
+                <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
+                <p class="section-desc">用于确认文件是否被正确读取。Excel 多 sheet 文件会在合并后预览，系统添加的 <code>__sheet__</code> 表示该行来源 sheet。</p>
+              </div>
+            </div>
+            <div class="table-wrap preview-wrap">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th v-for="column in previewColumns" :key="column">{{ column }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
+                    <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="glass-section">
             <div class="section-head">
               <div>
@@ -144,30 +168,6 @@
                     <td>{{ pct(row.missing_rate) }}</td>
                     <td>{{ pct(row.numeric_valid_rate) }}</td>
                     <td>{{ row.handling }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section v-if="previewRows.length" class="glass-section">
-            <div class="section-head">
-              <div>
-                <span class="section-title">数据预览</span>
-                <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
-                <p class="section-desc">用于确认文件是否被正确读取。Excel 多 sheet 文件会在合并后预览，系统添加的 <code>__sheet__</code> 表示该行来源 sheet。</p>
-              </div>
-            </div>
-            <div class="table-wrap preview-wrap">
-              <table class="preview-table">
-                <thead>
-                  <tr>
-                    <th v-for="column in previewColumns" :key="column">{{ column }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
-                    <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
                   </tr>
                 </tbody>
               </table>
