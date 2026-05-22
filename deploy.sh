@@ -88,6 +88,19 @@ fi
 mkdir -p reports .mplconfig .cache
 find reports -maxdepth 1 -type f -name '*.md' -delete
 
+ensure_chinese_fonts() {
+  if find /usr/share/fonts /usr/local/share/fonts -type f \( -iname '*NotoSansCJK*' -o -iname '*NotoSerifCJK*' -o -iname '*wqy*' -o -iname '*SourceHan*' \) 2>/dev/null | grep -q .; then
+    return 0
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y fontconfig fonts-noto-cjk
+  fi
+}
+
+ensure_chinese_fonts
+rm -f .mplconfig/fontlist*.json .cache/matplotlib/fontlist*.json 2>/dev/null || true
+
 cat >/etc/systemd/system/agri-data-trust.service <<'SERVICE'
 [Unit]
 Description=Agri Data Trust FastAPI App
