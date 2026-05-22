@@ -930,3 +930,315 @@ th {
     min-width: 680px;
   }
 }
+
+@media (max-width: 720px) {
+  main {
+    width: min(100% - 24px, 640px);
+  }
+
+  .shell-header {
+    gap: 12px;
+    min-height: auto;
+    padding: 12px;
+  }
+
+  .brand {
+    width: 100%;
+    gap: 10px;
+    font-size: 0.98rem;
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .shell-header nav {
+    width: 100%;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .shell-header nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shell-header nav a,
+  .theme-toggle {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--ghost-bg);
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+
+  .hero-grid {
+    gap: 14px;
+    padding: 16px 0 18px;
+  }
+
+  .hero-copy,
+  .hero-panel,
+  .glass-section,
+  .reasons-card,
+  .metric-card,
+  .method-card {
+    border-radius: 10px;
+  }
+
+  .hero-copy,
+  .hero-panel,
+  .glass-section,
+  .reasons-card {
+    padding: 16px;
+  }
+
+  .hero-copy h1 {
+    margin-top: 14px;
+    font-size: 2.18rem;
+    line-height: 1.1;
+  }
+
+  .hero-lead {
+    margin-top: 16px;
+    font-size: 0.98rem;
+    line-height: 1.72;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .primary-action,
+  .ghost-action,
+  .download-report {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .status-line {
+    margin-top: 14px;
+    line-height: 1.6;
+  }
+
+  .panel-top {
+    margin-bottom: 16px;
+  }
+
+  .score-orbit {
+    justify-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+
+  .score-ring {
+    width: 168px;
+    height: 168px;
+  }
+
+  .score-core {
+    width: 122px;
+    height: 122px;
+  }
+
+  .score-ring strong {
+    font-size: 2.35rem;
+  }
+
+  .score-orbit h2 {
+    font-size: 1.55rem;
+  }
+
+  .mini-bars {
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .mini-bars div {
+    grid-template-columns: 44px 1fr 34px;
+    gap: 9px;
+    font-size: 0.86rem;
+  }
+
+  .stats-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .stats-strip div {
+    padding: 8px 6px;
+    text-align: center;
+  }
+
+  .stats-strip strong {
+    font-size: 1rem;
+  }
+
+  .stats-strip span {
+    font-size: 0.7rem;
+  }
+
+  .summary-grid {
+    gap: 10px;
+    margin: 8px 0 14px;
+  }
+
+  .metric-card {
+    padding: 14px;
+  }
+
+  .metric-card strong {
+    font-size: 1.12rem;
+  }
+
+  .workspace {
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+
+  .content-stack {
+    gap: 14px;
+  }
+
+  .section-head {
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .section-head h2 {
+    font-size: 1.34rem;
+    line-height: 1.25;
+  }
+
+  .section-desc,
+  .sheet-note p,
+  .check-row p,
+  .chart-card figcaption span {
+    line-height: 1.6;
+  }
+
+  .table-wrap {
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+  }
+
+  table {
+    min-width: 620px;
+  }
+
+  th,
+  td {
+    padding: 10px 8px;
+    font-size: 0.86rem;
+  }
+
+  .preview-wrap {
+    max-height: 420px;
+  }
+
+  .preview-table {
+    min-width: 760px;
+  }
+
+  .preview-table td {
+    max-width: 190px;
+  }
+
+  .indicator-card,
+  .column-card {
+    padding: 14px;
+  }
+
+  .indicator-card strong {
+    font-size: 1.8rem;
+  }
+
+  .check-row {
+    grid-template-columns: 1fr 48px;
+    gap: 10px;
+  }
+
+  .chart-card figcaption {
+    padding: 10px 12px 12px;
+  }
+
+  .method-wrap {
+    width: min(100% - 24px, 640px);
+  }
+
+  .method-hero {
+    padding: 28px 0 16px;
+  }
+
+  .method-hero h1 {
+    font-size: 2.18rem;
+    line-height: 1.12;
+  }
+
+  .formula {
+    overflow-wrap: anywhere;
+    font-size: 1rem;
+  }
+
+  .formula-box {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  main,
+  .method-wrap {
+    width: calc(100% - 18px);
+  }
+
+  .hero-copy,
+  .hero-panel,
+  .glass-section,
+  .reasons-card {
+    padding: 14px;
+  }
+
+  .hero-copy h1,
+  .method-hero h1 {
+    font-size: 1.86rem;
+  }
+
+  .score-ring {
+    width: 154px;
+    height: 154px;
+  }
+
+  .score-core {
+    width: 112px;
+    height: 112px;
+  }
+
+  .score-ring strong {
+    font-size: 2.05rem;
+  }
+
+  .stats-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .table-wrap {
+    margin: 0 -14px;
+    padding: 0 14px 4px;
+  }
+
+  table {
+    min-width: 560px;
+  }
+
+  .preview-table {
+    min-width: 700px;
+  }
+}
