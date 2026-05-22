@@ -11,10 +11,12 @@
   <header class="shell-header">
     <a class="brand" href="/agri-trust/">
       <span class="brand-mark"></span>
-      <span>Agri Data Trust</span>
+      <span>农业数据可信度检测</span>
     </a>
     <nav>
       <a href="/agri-trust/">返回检测系统</a>
+      <a href="#scoring">评分标准</a>
+      <a href="#principles">实现原理</a>
       <a href="http://39.106.238.181/">作品集首页</a>
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深浅色主题">
         <span class="theme-dot"></span>
@@ -25,32 +27,32 @@
 
   <main class="method-wrap">
     <section class="method-hero">
-      <p class="eyebrow">Methodology</p>
+      <p class="eyebrow">评分规则说明</p>
       <h1>评分标准与实现原理</h1>
       <p>本系统输出可信度评分和可疑风险，不做“数据一定为假”的判断。第一版采用规则型统计检测，优先保证可运行、可解释、可复核。</p>
     </section>
 
-    <section class="method-grid">
-      <article>
-        <h2>风险等级</h2>
+    <section id="scoring" class="method-card">
+      <h2>评分标准</h2>
+      <p>总分范围为 0-100。分数越高，说明当前规则下越接近可解释的自然采集数据；分数越低，说明可疑信号越集中，需要结合采集设备、业务记录和现场环境复核。</p>
+      <div class="table-wrap">
         <table>
           <thead><tr><th>总分</th><th>风险等级</th><th>含义</th></tr></thead>
           <tbody>
             <tr><td>70-100</td><td>低风险</td><td>未发现明显高风险模式，仍建议结合业务背景复核。</td></tr>
-            <tr><td>50-69.99</td><td>中风险</td><td>存在若干可疑模式，需要查看采集记录和设备日志。</td></tr>
-            <tr><td>0-49.99</td><td>高风险</td><td>多个指标同时异常，建议优先复核数据来源和采集链路。</td></tr>
+            <tr><td>50-69.99</td><td>中风险</td><td>存在若干可疑模式，需要查看采集记录、设备日志和数据处理流程。</td></tr>
+            <tr><td>0-49.99</td><td>高风险</td><td>多个指标同时异常，建议优先复核数据来源、采集链路和人工处理痕迹。</td></tr>
           </tbody>
         </table>
-      </article>
-      <article>
-        <h2>总分公式</h2>
+      </div>
+      <div class="formula-box">
+        <span>总分公式</span>
         <p class="formula">S = 0.22S<sub>平滑度</sub> + 0.22S<sub>时间序列</sub> + 0.18S<sub>数字规律</sub> + 0.18S<sub>异常点</sub> + 0.20S<sub>相关性</sub></p>
-        <p>分数越高，说明当前规则下越接近可解释的自然采集数据；分数越低，说明可疑信号越集中。</p>
-      </article>
+      </div>
     </section>
 
-    <section class="method-card">
-      <h2>文件粗筛与缺失值处理</h2>
+    <section id="screening" class="method-card">
+      <h2>文件粗筛与防呆处理</h2>
       <div class="method-columns">
         <div>
           <h3>列类型处理</h3>
@@ -61,17 +63,99 @@
           <p>系统不自动填补缺失值。数值列通过 <code>pandas.to_numeric(errors="coerce")</code> 清洗，不可解析内容转为缺失；单变量指标使用 <code>dropna()</code> 后的有效序列。</p>
         </div>
       </div>
+      <div class="method-list compact-list">
+        <div><b>文件格式</b><span>只接受 CSV、XLSX、XLS。其他格式会直接拒绝，避免把图片、压缩包或无关文件送入分析流程。</span></div>
+        <div><b>空文件</b><span>如果文件为空、没有表头或没有数据行，系统会给出明确提示，不进入评分。</span></div>
+        <div><b>不可解析列</b><span>一列中大部分值无法转成数字时，会被视为文本或分类字段，只在粗筛表展示，不进入数值检测。</span></div>
+        <div><b>常量列</b><span>如果某列所有有效值都一样，无法计算自然波动、异常点和相关结构，会被标记为常量列并跳过。</span></div>
+        <div><b>样本过少</b><span>有效数值太少时，ACF、IsolationForest 等统计结果不稳定，该列会降级处理或跳过相关指标。</span></div>
+        <div><b>缺失过多</b><span>缺失率会展示在粗筛表中。当前版本不自动填补，是为了避免系统凭空制造看似正常的数据。</span></div>
+      </div>
+    </section>
+
+    <section id="principles" class="method-card">
+      <h2>五类检测指标如何计算</h2>
+      <p>每个数值列都会分别执行单变量检测，多变量相关性在所有合格数值列之间计算。子评分会先按列汇总，再进入总分公式。</p>
+      <div class="metric-accordion">
+        <details open>
+          <summary>1. 平滑度检测</summary>
+          <p>目标是识别“变化过于机械、过于平顺”的序列。真实农业传感器通常会受到天气、设备噪声、采样误差和田间环境影响，不应长期呈现完全等步长变化。</p>
+          <ul>
+            <li>一阶差分：<code>d_t = x_t - x_{t-1}</code>，观察相邻采样的变化幅度。</li>
+            <li>二阶差分：<code>a_t = d_t - d_{t-1}</code>，观察变化本身是否也过于稳定。</li>
+            <li>滚动方差：对窗口内数据计算 <code>Var(x_{t-w:t})</code>，若长期接近 0，说明波动不足。</li>
+            <li>变化率稳定性：<code>r_t = d_t / (|x_{t-1}| + epsilon)</code>，若标准差极小，提示机械生成风险。</li>
+          </ul>
+          <p>得分逻辑：差分、滚动方差和变化率越自然，得分越高；长期零波动、固定步长、二阶差分接近 0 的比例越高，得分越低。</p>
+        </details>
+
+        <details>
+          <summary>2. 时间序列自然性检测</summary>
+          <p>目标是判断数据是否具备真实采集数据常见的时间相关性，而不是随机拼接或过度拟合出来的序列。</p>
+          <ul>
+            <li>自相关：计算 <code>corr(x_t, x_{t-k})</code>，重点观察 lag 1-10 的相关性。</li>
+            <li>ACF：使用 <code>statsmodels</code> 计算自相关函数，检查相关性是否随滞后阶数合理衰减。</li>
+            <li>趋势变化：用一阶差分符号变化率判断趋势是否过于单调或过度频繁反转。</li>
+            <li>周期性线索：观察 ACF 峰值是否显示合理周期，例如温度、湿度常见日周期。</li>
+          </ul>
+          <p>得分逻辑：存在适度时间相关、趋势变化合理、ACF 不极端时得分较高；完全无相关、过度规则周期或长期单调直线会降低得分。</p>
+        </details>
+
+        <details>
+          <summary>3. 小数位和数字规律检测</summary>
+          <p>目标是识别人工录入或生成数据常见的“数字太整齐”现象。真实传感器数据的小数位、尾数和重复值通常不会过于集中。</p>
+          <ul>
+            <li>整数比例：统计 <code>x mod 1 = 0</code> 的比例。</li>
+            <li>小数位分布：统计 0 位、1 位、2 位等小数精度是否异常集中。</li>
+            <li>尾数分布：统计末位数字 0-9 的频率，检测是否大量集中在 0、5 或固定尾数。</li>
+            <li>重复值比例：统计众数占比和连续重复长度。</li>
+            <li>固定步长：观察相邻差分是否频繁落在同一个值。</li>
+          </ul>
+          <p>得分逻辑：小数位和尾数分布越均衡，得分越高；整数比例异常高、尾数高度集中、重复值过多或固定步长明显会降低得分。</p>
+        </details>
+
+        <details>
+          <summary>4. 异常点分布检测</summary>
+          <p>目标是判断序列中是否存在合理的自然波动。农业原始采集数据完全没有异常点并不一定更可信，可能意味着被过度清洗或生成得过于完美。</p>
+          <ul>
+            <li>z-score：<code>z = (x - mean) / std</code>，通常关注 <code>|z| &gt; 3</code> 的点。</li>
+            <li>IQR：计算 <code>Q1 - 1.5IQR</code> 和 <code>Q3 + 1.5IQR</code> 外的点。</li>
+            <li>IsolationForest：使用 <code>scikit-learn</code> 对单列数值进行无监督异常检测。</li>
+            <li>异常比例：统计异常点占比是否过低或过高。</li>
+          </ul>
+          <p>得分逻辑：少量异常且分布合理时得分较高；异常过多说明数据波动失控，完全没有异常也会触发轻度可疑提示。</p>
+        </details>
+
+        <details>
+          <summary>5. 多变量相关性检测</summary>
+          <p>目标是发现变量之间过强相关、完美线性关系或人为复制列。真实农业变量可能相关，但通常不会长期保持完全线性。</p>
+          <ul>
+            <li>Pearson 相关：检测线性关系，计算 <code>corr(X, Y)</code>。</li>
+            <li>Spearman 相关：检测单调关系，适合非线性但排序关系很强的变量。</li>
+            <li>相关矩阵：对所有合格数值列两两计算，并生成热力图。</li>
+            <li>高相关阈值：若多个变量绝对相关系数接近 1，需要提示人工复核。</li>
+          </ul>
+          <p>得分逻辑：变量间存在合理相关但不完美时得分较高；大量接近 1 或 -1 的相关关系、重复列、线性派生列会降低得分。</p>
+        </details>
+      </div>
     </section>
 
     <section class="method-card">
-      <h2>五类检测</h2>
-      <div class="method-list">
-        <div><b>平滑度检测</b><span>一阶差分、二阶差分、rolling variance、变化率标准差，用于识别过度平滑或机械变化。</span></div>
-        <div><b>时间序列自然性</b><span>使用 statsmodels ACF、自相关、趋势变化率和趋势强度，判断时间结构是否自然。</span></div>
-        <div><b>小数位/数字规律</b><span>分析整数比例、小数位分布、尾数分布、固定步长和重复值比例。</span></div>
-        <div><b>异常点分布</b><span>使用 z-score、IQR 与 IsolationForest。完全没有异常点也可能提示过度清洗风险。</span></div>
-        <div><b>多变量相关性</b><span>使用 Pearson 与 Spearman 相关矩阵，识别过强相关或近乎完美线性关系。</span></div>
+      <h2>后续可扩展指标</h2>
+      <p>结合近年 IoT 数据质量、传感器异常检测和智慧农业研究，后续版本可以在保持可解释的前提下逐步加入以下指标。</p>
+      <div class="method-list compact-list">
+        <div><b>传感器漂移</b><span>检测均值、方差或基线是否缓慢偏移。适合温湿度、土壤水分等长期传感器，常见方法包括滑动窗口统计、双线性回归和变化点检测。</span></div>
+        <div><b>采样完整性</b><span>检查时间间隔是否稳定、是否存在连续缺测、是否有重复时间戳。适合原始采集链路质量评估。</span></div>
+        <div><b>物理范围约束</b><span>按农业常识设置温度、湿度、降雨量、农药残留等合理范围，超出范围时不直接判假，只提示复核单位、量纲和设备状态。</span></div>
+        <div><b>跨传感器一致性</b><span>同一地块、相邻设备或相似变量之间应有一定一致性，可检测单个设备故障或局部异常。</span></div>
+        <div><b>噪声与校准</b><span>检测短期高频噪声、量化台阶、长期偏置和校准前后突变，帮助区分真实波动和设备问题。</span></div>
+        <div><b>审计与来源信息</b><span>如果上传文件包含设备编号、采集人、修改时间等元数据，可检测来源缺失、重复设备、异常批量修改等风险。</span></div>
       </div>
+    </section>
+
+    <section class="method-card">
+      <h2>为什么第一版不直接加入复杂深度学习</h2>
+      <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、漂移检测或深度异常检测模型。</p>
     </section>
   </main>
   <script src="assets/theme.js"></script>

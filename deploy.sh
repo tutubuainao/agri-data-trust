@@ -48,6 +48,13 @@ APP_PARENT="$(dirname "$REMOTE_DIR")"
 APP_BASENAME="$(basename "$REMOTE_DIR")"
 BACKUP_DIR="${REMOTE_DIR}.backup.${STAMP}"
 VHOST="/www/server/panel/vhost/nginx/39.106.238.181.conf"
+MAINTENANCE_FLAG="/tmp/agri_data_trust_maintenance"
+MAINTENANCE_PAGE="/www/wwwroot/39.106.238.181/agri-trust-updating.html"
+
+cleanup_remote() {
+  rm -f "$MAINTENANCE_FLAG"
+}
+trap cleanup_remote EXIT
 
 mkdir -p "$APP_PARENT"
 
@@ -100,9 +107,46 @@ RestartSec=5
 WantedBy=multi-user.target
 SERVICE
 
-systemctl daemon-reload
-systemctl enable agri-data-trust >/dev/null
-systemctl restart agri-data-trust
+cat >"$MAINTENANCE_PAGE" <<'HTML'
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>系统正在更新</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #f4f7f4;
+      color: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+    main {
+      width: min(560px, calc(100% - 36px));
+      padding: 34px;
+      border: 1px solid #d9e1dc;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 24px 70px rgba(17, 24, 39, 0.10);
+    }
+    h1 { margin: 0; font-size: 2rem; }
+    p { margin: 14px 0 0; color: #5f6f66; line-height: 1.7; }
+    a { display: inline-flex; margin-top: 22px; color: #14532d; font-weight: 800; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>系统正在更新</h1>
+    <p>农业数据可信度检测系统正在发布新版本，通常几十秒内完成。请稍后刷新页面。</p>
+    <a href="/agri-trust/">重新打开检测系统</a>
+  </main>
+</body>
+</html>
+HTML
 
 if [[ -f "$VHOST" ]] && ! grep -q 'location \^~ /agri-trust/' "$VHOST"; then
   python3 <<'PY'
@@ -112,11 +156,20 @@ from datetime import datetime
 p = Path("/www/server/panel/vhost/nginx/39.106.238.181.conf")
 text = p.read_text()
 block = """    # Agri Data Trust FastAPI app
+    error_page 503 /agri-trust-updating.html;
+
+    location = /agri-trust-updating.html {
+        root /www/wwwroot/39.106.238.181;
+    }
+
     location = /agri-trust {
         return 301 /agri-trust/;
     }
 
     location ^~ /agri-trust/ {
+        if (-f /tmp/agri_data_trust_maintenance) {
+            return 503;
+        }
         proxy_pass http://127.0.0.1:8501/agri-trust/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -140,6 +193,42 @@ p.write_text(text.replace(marker, block + marker, 1))
 PY
 fi
 
+if [[ -f "$VHOST" ]] && ! grep -q 'agri_data_trust_maintenance' "$VHOST"; then
+  python3 <<'PY'
+from pathlib import Path
+from datetime import datetime
+
+p = Path("/www/server/panel/vhost/nginx/39.106.238.181.conf")
+text = p.read_text()
+backup = p.with_suffix(p.suffix + f".bak.{datetime.now():%Y%m%d_%H%M%S}")
+backup.write_text(text)
+
+if "error_page 503 /agri-trust-updating.html;" not in text:
+    marker = "    location = /agri-trust"
+    text = text.replace(
+        marker,
+        "    error_page 503 /agri-trust-updating.html;\n\n"
+        "    location = /agri-trust-updating.html {\n"
+        "        root /www/wwwroot/39.106.238.181;\n"
+        "    }\n\n"
+        + marker,
+        1,
+    )
+
+needle = "    location ^~ /agri-trust/ {\n"
+guard = (
+    "    location ^~ /agri-trust/ {\n"
+    "        if (-f /tmp/agri_data_trust_maintenance) {\n"
+    "            return 503;\n"
+    "        }\n"
+)
+if needle not in text:
+    raise SystemExit("Agri trust nginx location not found")
+text = text.replace(needle, guard, 1)
+p.write_text(text)
+PY
+fi
+
 if [[ -f "$VHOST" ]] && ! grep -q 'ayaumathxu.top' "$VHOST"; then
   python3 <<'PY'
 from pathlib import Path
@@ -156,8 +245,14 @@ fi
 nginx -t
 nginx -s reload || systemctl reload nginx
 
+touch "$MAINTENANCE_FLAG"
+systemctl daemon-reload
+systemctl enable agri-data-trust >/dev/null
+systemctl restart agri-data-trust
+
 sleep 12
 systemctl --no-pager --full status agri-data-trust | sed -n '1,30p'
+rm -f "$MAINTENANCE_FLAG"
 curl -fsSI -H 'Host: 39.106.238.181' http://127.0.0.1/agri-trust/ >/dev/null
 curl -fsSI -H 'Host: 39.106.238.181' http://127.0.0.1/agri-trust/methodology >/dev/null
 echo "Server deployment OK"

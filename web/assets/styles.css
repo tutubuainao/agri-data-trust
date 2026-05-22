@@ -576,6 +576,23 @@ th {
   font-size: 1.18rem;
 }
 
+.formula-box {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-card);
+}
+
+.formula-box span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.formula-box p {
+  margin: 8px 0 0;
+}
+
 .method-list {
   display: grid;
   gap: 14px;
@@ -594,6 +611,53 @@ th {
 .method-card p {
   color: var(--muted);
   line-height: 1.72;
+}
+
+.compact-list {
+  margin-top: 18px;
+}
+
+.metric-accordion {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.metric-accordion details {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-card);
+  padding: 0 18px;
+}
+
+.metric-accordion summary {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.metric-accordion summary::marker {
+  color: var(--green);
+}
+
+.metric-accordion p,
+.metric-accordion li {
+  color: var(--muted);
+  line-height: 1.72;
+}
+
+.metric-accordion ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.metric-accordion code,
+.method-card code {
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 @media (max-width: 960px) {
