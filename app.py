@@ -27,7 +27,7 @@ st.markdown(
       <h1>农业原始数据可信度检测系统 MVP</h1>
       <p>上传 CSV 或 Excel 后，系统会先做文件粗筛，再对可分析的数值列执行五类可信度检测，输出评分、风险等级、解释和 HTML 报告。本系统只提示可疑风险，不判定数据一定为假。</p>
       <div class="trust-actions">
-        <a class="trust-link" href="01_methodology" target="_self">查看评分标准与实现原理</a>
+        <a class="trust-link" href="methodology" target="_self">查看评分标准与实现原理</a>
       </div>
     </section>
     """,
@@ -39,7 +39,7 @@ with st.sidebar:
     try:
         st.page_link("pages/01_methodology.py", label="评分标准与实现原理")
     except Exception:
-        st.markdown("[评分标准与实现原理](01_methodology)")
+        st.markdown("[评分标准与实现原理](methodology)")
     st.caption("普通数值检测、文件粗筛、缺失值处理和评分阈值说明都在说明页中。")
 
 uploaded = st.file_uploader("上传 CSV 或 Excel 文件", type=["csv", "xlsx", "xls"])

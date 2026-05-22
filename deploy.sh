@@ -83,17 +83,16 @@ find reports -maxdepth 1 -type f -name '*.md' -delete
 
 cat >/etc/systemd/system/agri-data-trust.service <<'SERVICE'
 [Unit]
-Description=Agri Data Trust Streamlit MVP
+Description=Agri Data Trust FastAPI App
 After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/agri-data-trust
-Environment=STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 Environment=MPLCONFIGDIR=/opt/agri-data-trust/.mplconfig
 Environment=XDG_CACHE_HOME=/opt/agri-data-trust/.cache
-ExecStart=/opt/agri-data-trust/.venv/bin/streamlit run app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --server.baseUrlPath agri-trust --browser.gatherUsageStats false
+ExecStart=/opt/agri-data-trust/.venv/bin/uvicorn api_app:app --host 127.0.0.1 --port 8501
 Restart=always
 RestartSec=5
 
@@ -112,7 +111,7 @@ from datetime import datetime
 
 p = Path("/www/server/panel/vhost/nginx/39.106.238.181.conf")
 text = p.read_text()
-block = """    # Agri Data Trust Streamlit app
+block = """    # Agri Data Trust FastAPI app
     location = /agri-trust {
         return 301 /agri-trust/;
     }
@@ -157,12 +156,14 @@ fi
 nginx -t
 nginx -s reload || systemctl reload nginx
 
-sleep 5
+sleep 12
 systemctl --no-pager --full status agri-data-trust | sed -n '1,30p'
 curl -fsSI -H 'Host: 39.106.238.181' http://127.0.0.1/agri-trust/ >/dev/null
+curl -fsSI -H 'Host: 39.106.238.181' http://127.0.0.1/agri-trust/methodology >/dev/null
 echo "Server deployment OK"
 REMOTE
 
 echo "==> Verifying public URL"
 curl -fsSI --max-time 20 "$PUBLIC_URL" >/dev/null
+curl -fsSI --max-time 20 "${PUBLIC_URL%/}/methodology" >/dev/null
 echo "Deploy complete: $PUBLIC_URL"

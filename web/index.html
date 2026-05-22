@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>农业数据可信度检测</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div id="app" class="trust-app" v-cloak>
+    <header class="shell-header">
+      <a class="brand" href="/agri-trust/">
+        <span class="brand-mark"></span>
+        <span>Agri Data Trust</span>
+      </a>
+      <nav>
+        <a href="/agri-trust/methodology">评分标准</a>
+        <a href="http://39.106.238.181/">作品集首页</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">FastAPI + Vue · Agricultural Data Risk Intelligence</p>
+          <h1>农业原始数据可信度检测系统</h1>
+          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行五类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
+          <div class="hero-actions">
+            <label class="primary-action">
+              <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
+              上传数据并分析
+            </label>
+            <button class="ghost-action" @click="loadSample('real')">真实示例</button>
+            <button class="ghost-action" @click="loadSample('fake')">平滑示例</button>
+          </div>
+          <div class="status-line" :class="{error: error}">
+            <span v-if="loading">正在分析数据，请稍候...</span>
+            <span v-else-if="error">{{ error }}</span>
+            <span v-else-if="result">已完成：{{ result.source_name }}</span>
+            <span v-else>支持 CSV、XLSX、XLS。文件不会被判断“真假”，只输出风险线索。</span>
+          </div>
+        </div>
+
+        <aside class="hero-panel">
+          <div class="panel-top">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="score-orbit">
+            <div class="score-ring" :style="scoreStyle">
+              <div>
+                <strong>{{ totalScore }}</strong>
+                <span>/100</span>
+              </div>
+            </div>
+            <div>
+              <p>当前可信度评分</p>
+              <h2>{{ riskLevel }}</h2>
+              <small>{{ scoreSubtitle }}</small>
+            </div>
+          </div>
+          <div class="mini-bars">
+            <div v-for="item in subScoreItems" :key="item.key">
+              <span>{{ item.short }}</span>
+              <i><b :style="{width: item.score + '%'}"></b></i>
+              <em>{{ item.score }}</em>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section v-if="result" class="summary-grid">
+        <article class="metric-card">
+          <span>数据文件</span>
+          <strong>{{ result.source_name }}</strong>
+        </article>
+        <article class="metric-card">
+          <span>数据规模</span>
+          <strong>{{ result.profile.rows }} × {{ result.profile.columns }}</strong>
+        </article>
+        <article class="metric-card">
+          <span>数值检测列</span>
+          <strong>{{ result.profile.numeric_columns.length }}</strong>
+        </article>
+        <article class="metric-card">
+          <span>整体缺失率</span>
+          <strong>{{ pct(result.profile.missing_rate) }}</strong>
+        </article>
+      </section>
+
+      <section v-if="result?.ok" class="workspace">
+        <aside class="reasons-card">
+          <div class="section-title">风险解释</div>
+          <ul>
+            <li v-for="reason in result.analysis.reasons" :key="reason">{{ reason }}</li>
+          </ul>
+          <a class="download-report" :href="result.report_url" target="_blank">打开 HTML 报告</a>
+        </aside>
+
+        <div class="content-stack">
+          <section class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">文件粗筛</span>
+                <h2>字段准入与处理方式</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>列名</th><th>角色</th><th>进入检测</th><th>缺失率</th><th>数值可解析率</th><th>处理方式</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in result.screening" :key="row.column">
+                    <td>{{ row.column }}</td>
+                    <td><span class="pill">{{ row.role }}</span></td>
+                    <td>{{ row.entered_analysis ? '是' : '否' }}</td>
+                    <td>{{ pct(row.missing_rate) }}</td>
+                    <td>{{ pct(row.numeric_valid_rate) }}</td>
+                    <td>{{ row.handling }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">指标详情</span>
+                <h2>五类检测子评分</h2>
+              </div>
+            </div>
+            <div class="indicator-grid">
+              <article v-for="item in subScoreItems" :key="item.key" class="indicator-card">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.score }}</strong>
+                <small>{{ item.risk }}</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">分列分析</span>
+                <h2>每个数值列的可疑线索</h2>
+              </div>
+            </div>
+            <div class="column-grid">
+              <article v-for="(checks, col) in result.analysis.column_results" :key="col" class="column-card">
+                <h3>{{ col }}</h3>
+                <div v-for="check in checks" :key="check.label" class="check-row">
+                  <div>
+                    <b>{{ check.label }}</b>
+                    <p>{{ (check.reasons || []).join('；') }}</p>
+                  </div>
+                  <strong>{{ check.score }}</strong>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">图表输出</span>
+                <h2>风险图谱与相关性热力图</h2>
+              </div>
+            </div>
+            <div class="chart-grid">
+              <img v-for="chart in chartUrls" :key="chart" :src="chart" alt="检测图表">
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section v-if="result && !result.ok" class="glass-section">
+        <div class="section-title">文件粗筛结果</div>
+        <p class="empty-message">{{ result.message }}</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>列名</th><th>角色</th><th>缺失率</th><th>处理方式</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in result.screening" :key="row.column">
+                <td>{{ row.column }}</td><td>{{ row.role }}</td><td>{{ pct(row.missing_rate) }}</td><td>{{ row.handling }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
+

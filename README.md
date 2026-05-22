@@ -1,6 +1,6 @@
 # 农业原始数据可信度检测系统 MVP
 
-这是一个可直接运行的 Python/Streamlit MVP，用于对农业原始数据进行可信度风险检测。系统不会判断“数据一定是假的”，只输出可信度评分、风险等级和可解释的可疑原因。
+这是一个可直接运行的 Python/FastAPI MVP，用于对农业原始数据进行可信度风险检测。系统不会判断“数据一定是假的”，只输出可信度评分、风险等级和可解释的可疑原因。当前线上版使用 FastAPI 提供算法接口，前端使用 Vue 页面呈现。
 
 ## 功能
 
@@ -10,6 +10,7 @@
 - 对每个数值列执行四类单变量检测
 - 对所有数值列执行多变量相关性检测
 - 输出 0-100 总可信度评分、五项子评分、风险等级和解释
+- FastAPI 接口调用核心算法，Vue 前端展示结果
 - 生成 HTML 检测报告
 - 提供“评分标准与实现原理”说明页，解释评分等级、公式、依赖库和缺失值处理规则
 - 输出趋势图、ACF 图、尾数分布图、异常点扫描图和相关性热力图
@@ -36,10 +37,12 @@ pip install -r requirements.txt
 ## 运行
 
 ```bash
-streamlit run app.py
+uvicorn api_app:app --reload --host 127.0.0.1 --port 8501
 ```
 
-浏览器打开 Streamlit 提供的本地地址后，可以上传自己的 CSV/Excel 文件，也可以点击页面按钮加载示例数据。
+浏览器打开 `http://127.0.0.1:8501/agri-trust/` 后，可以上传自己的 CSV/Excel 文件，也可以点击页面按钮加载示例数据。
+
+旧版 Streamlit 页面仍保留在 `app.py`，用于对照和回退；线上默认使用 `api_app.py`。
 
 ## 线上部署
 
@@ -77,6 +80,7 @@ https://github.com/tutubuainao/agri-data-trust
 ```text
 agri-data-trust/
 ├── app.py
+├── api_app.py
 ├── requirements.txt
 ├── README.md
 ├── data/
@@ -85,6 +89,7 @@ agri-data-trust/
 ├── pages/
 │   └── 01_methodology.py
 ├── src/
+│   ├── analysis_service.py
 │   ├── loader.py
 │   ├── profiler.py
 │   ├── screening.py
@@ -97,6 +102,12 @@ agri-data-trust/
 │   ├── report.py
 │   ├── ui.py
 │   └── utils.py
+├── web/
+│   ├── index.html
+│   ├── methodology.html
+│   └── assets/
+│       ├── app.js
+│       └── styles.css
 └── reports/
 ```
 

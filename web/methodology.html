@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>评分标准与实现原理</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="method-page">
+  <header class="shell-header">
+    <a class="brand" href="/agri-trust/">
+      <span class="brand-mark"></span>
+      <span>Agri Data Trust</span>
+    </a>
+    <nav>
+      <a href="/agri-trust/">返回检测系统</a>
+      <a href="http://39.106.238.181/">作品集首页</a>
+    </nav>
+  </header>
+
+  <main class="method-wrap">
+    <section class="method-hero">
+      <p class="eyebrow">Methodology</p>
+      <h1>评分标准与实现原理</h1>
+      <p>本系统输出可信度评分和可疑风险，不做“数据一定为假”的判断。第一版采用规则型统计检测，优先保证可运行、可解释、可复核。</p>
+    </section>
+
+    <section class="method-grid">
+      <article>
+        <h2>风险等级</h2>
+        <table>
+          <thead><tr><th>总分</th><th>风险等级</th><th>含义</th></tr></thead>
+          <tbody>
+            <tr><td>70-100</td><td>低风险</td><td>未发现明显高风险模式，仍建议结合业务背景复核。</td></tr>
+            <tr><td>50-69.99</td><td>中风险</td><td>存在若干可疑模式，需要查看采集记录和设备日志。</td></tr>
+            <tr><td>0-49.99</td><td>高风险</td><td>多个指标同时异常，建议优先复核数据来源和采集链路。</td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article>
+        <h2>总分公式</h2>
+        <p class="formula">S = 0.22S<sub>平滑度</sub> + 0.22S<sub>时间序列</sub> + 0.18S<sub>数字规律</sub> + 0.18S<sub>异常点</sub> + 0.20S<sub>相关性</sub></p>
+        <p>分数越高，说明当前规则下越接近可解释的自然采集数据；分数越低，说明可疑信号越集中。</p>
+      </article>
+    </section>
+
+    <section class="method-card">
+      <h2>文件粗筛与缺失值处理</h2>
+      <div class="method-columns">
+        <div>
+          <h3>列类型处理</h3>
+          <p>时间列用于排序，不参与数值评分。数值可解析率不低于 70%、有效唯一值不少于 3 的非时间列进入五类检测。文本列、分类列、空列、常量列会在粗筛表说明跳过原因。</p>
+        </div>
+        <div>
+          <h3>缺失值处理</h3>
+          <p>系统不自动填补缺失值。数值列通过 <code>pandas.to_numeric(errors="coerce")</code> 清洗，不可解析内容转为缺失；单变量指标使用 <code>dropna()</code> 后的有效序列。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="method-card">
+      <h2>五类检测</h2>
+      <div class="method-list">
+        <div><b>平滑度检测</b><span>一阶差分、二阶差分、rolling variance、变化率标准差，用于识别过度平滑或机械变化。</span></div>
+        <div><b>时间序列自然性</b><span>使用 statsmodels ACF、自相关、趋势变化率和趋势强度，判断时间结构是否自然。</span></div>
+        <div><b>小数位/数字规律</b><span>分析整数比例、小数位分布、尾数分布、固定步长和重复值比例。</span></div>
+        <div><b>异常点分布</b><span>使用 z-score、IQR 与 IsolationForest。完全没有异常点也可能提示过度清洗风险。</span></div>
+        <div><b>多变量相关性</b><span>使用 Pearson 与 Spearman 相关矩阵，识别过强相关或近乎完美线性关系。</span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+

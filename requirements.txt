@@ -6,3 +6,6 @@ statsmodels>=0.14
 matplotlib>=3.7
 streamlit>=1.30
 openpyxl>=3.1
+fastapi>=0.111
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
