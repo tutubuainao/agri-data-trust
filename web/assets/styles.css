@@ -546,6 +546,12 @@ main {
   overflow: auto;
 }
 
+.preview-wrap {
+  max-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -564,6 +570,24 @@ td {
 th {
   color: var(--table-head);
   font-size: 0.86rem;
+}
+
+.preview-table {
+  min-width: 920px;
+}
+
+.preview-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.preview-table td {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pill {

@@ -125,6 +125,16 @@ createApp({
       if (skipped.length) parts.push(`空 sheet 已跳过：${skipped.join("、")}。`);
       return parts.join("");
     },
+    previewRows() {
+      return this.result?.preview || [];
+    },
+    previewColumns() {
+      const seen = new Set();
+      this.previewRows.forEach((row) => {
+        Object.keys(row || {}).forEach((key) => seen.add(key));
+      });
+      return Array.from(seen);
+    },
   },
   methods: {
     pct(value) {
@@ -223,6 +233,12 @@ createApp({
     },
     clearAlert() {
       this.alertMessage = "";
+    },
+    previewValue(row, column) {
+      const value = row?.[column];
+      if (value === null || value === undefined || value === "") return "—";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
     },
   },
   mounted() {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260522c">
+  <link rel="stylesheet" href="assets/styles.css?v=20260522d">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -150,6 +150,30 @@
             </div>
           </section>
 
+          <section v-if="previewRows.length" class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">数据预览</span>
+                <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
+                <p class="section-desc">用于确认文件是否被正确读取。Excel 多 sheet 文件会在合并后预览，系统添加的 <code>__sheet__</code> 表示该行来源 sheet。</p>
+              </div>
+            </div>
+            <div class="table-wrap preview-wrap">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th v-for="column in previewColumns" :key="column">{{ column }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
+                    <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="glass-section">
             <div class="section-head">
               <div>
@@ -192,7 +216,7 @@
               <div>
                 <span class="section-title">图表输出</span>
                 <h2>风险图谱与相关性热力图</h2>
-                <p class="section-desc">鼠标悬停在图表上可以查看用途说明。图表用于辅助复核风险线索，不单独作为真假判定依据。</p>
+                <p class="section-desc">图表用于辅助复核风险线索，不单独作为真假判定依据。</p>
               </div>
             </div>
             <div class="chart-grid">
@@ -224,6 +248,30 @@
           </table>
         </div>
       </section>
+
+      <section v-if="result && !result.ok && previewRows.length" class="glass-section">
+        <div class="section-head">
+          <div>
+            <span class="section-title">数据预览</span>
+            <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
+            <p class="section-desc">用于确认文件是否被正确读取。当前文件未识别到可分析数值列，但仍可查看原始读取结果。</p>
+          </div>
+        </div>
+        <div class="table-wrap preview-wrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th v-for="column in previewColumns" :key="column">{{ column }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
+                <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
     <div v-if="alertMessage" class="modal-backdrop" @click.self="clearAlert">
       <div class="alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="alert-title">
@@ -236,7 +284,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260522c"></script>
-  <script src="assets/app.js?v=20260522c"></script>
+  <script src="assets/theme.js?v=20260522d"></script>
+  <script src="assets/app.js?v=20260522d"></script>
 </body>
 </html>
