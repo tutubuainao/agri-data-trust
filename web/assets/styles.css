@@ -23,6 +23,7 @@
   --chart-bg: #ffffff;
   --table-head: #d8e7dd;
   --button-ink: #062018;
+  --risk-color: var(--green);
 }
 
 :root[data-theme="light"] {
@@ -50,6 +51,7 @@
   --chart-bg: #ffffff;
   --table-head: #20362b;
   --button-ink: #062018;
+  --risk-color: var(--green);
 }
 
 * {
@@ -269,6 +271,22 @@ main {
   background: var(--hero-panel-bg);
 }
 
+.risk-low {
+  --risk-color: var(--green);
+}
+
+.risk-medium {
+  --risk-color: var(--gold);
+}
+
+.risk-high {
+  --risk-color: var(--red);
+}
+
+.risk-idle {
+  --risk-color: var(--teal);
+}
+
 .panel-top {
   display: flex;
   gap: 8px;
@@ -300,24 +318,34 @@ main {
   border-radius: 50%;
 }
 
-.score-ring > div {
+.score-core {
   display: grid;
   place-items: center;
   width: 138px;
   height: 138px;
   border-radius: 50%;
   background: var(--score-core);
+  text-align: center;
 }
 
 .score-ring strong {
-  font-size: 3.25rem;
+  color: var(--risk-color);
+  font-size: 2.72rem;
   line-height: 1;
 }
 
-.score-ring span,
+.score-core span,
+.score-core em,
 .score-orbit p,
 .score-orbit small {
   color: var(--muted);
+}
+
+.score-core span,
+.score-core em {
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .score-orbit h2 {
@@ -350,7 +378,63 @@ main {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--green), var(--gold));
+  background: linear-gradient(90deg, var(--risk-color), var(--gold));
+}
+
+.progress-box {
+  margin-top: 22px;
+}
+
+.progress-track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--bar-track);
+  overflow: hidden;
+}
+
+.progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--risk-color), var(--gold));
+  transition: width 180ms ease;
+}
+
+.progress-box span {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.stats-strip div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-card);
+  padding: 10px;
+}
+
+.stats-strip strong,
+.stats-strip span {
+  display: block;
+}
+
+.stats-strip strong {
+  color: var(--risk-color);
+  font-size: 1.16rem;
+}
+
+.stats-strip span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .summary-grid {
@@ -384,6 +468,16 @@ main {
   gap: 18px;
   align-items: start;
   margin-bottom: 64px;
+}
+
+.sheet-note {
+  margin: 0 0 22px;
+}
+
+.sheet-note p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.68;
 }
 
 .reasons-card,

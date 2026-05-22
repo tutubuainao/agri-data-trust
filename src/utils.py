@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 from uuid import uuid4
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path.cwd() / ".mplconfig"))
@@ -37,12 +38,17 @@ def safe_ratio(numerator: float, denominator: float) -> float:
     return float(numerator / denominator) if denominator else 0.0
 
 
+def safe_filename_part(value: str) -> str:
+    text = re.sub(r"[^\w\u4e00-\u9fff.-]+", "_", str(value), flags=re.UNICODE).strip("._")
+    return text[:80] or "chart"
+
+
 def save_line_plot(series: pd.Series, title: str, reports_dir: Path, prefix: str) -> str | None:
     values = clean_numeric(series)
     if len(values) < 2:
         return None
     reports_dir.mkdir(parents=True, exist_ok=True)
-    path = reports_dir / f"{prefix}_{uuid4().hex[:8]}.png"
+    path = reports_dir / f"{safe_filename_part(prefix)}_{uuid4().hex[:8]}.png"
     fig, ax = plt.subplots(figsize=(8, 3.2))
     ax.plot(np.arange(len(values)), values.to_numpy(), linewidth=1.6)
     ax.set_title(title)
@@ -59,7 +65,7 @@ def save_bar_plot(labels: list[str], values: list[float], title: str, reports_di
     if not labels:
         return None
     reports_dir.mkdir(parents=True, exist_ok=True)
-    path = reports_dir / f"{prefix}_{uuid4().hex[:8]}.png"
+    path = reports_dir / f"{safe_filename_part(prefix)}_{uuid4().hex[:8]}.png"
     fig, ax = plt.subplots(figsize=(8, 3.2))
     ax.bar(labels, values)
     ax.set_title(title)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from io import BytesIO
+import json
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +47,48 @@ def _profile_payload(profile) -> dict[str, Any]:
         "rows": profile.rows,
         "columns": profile.columns,
         "missing_rate": round(profile.missing_rate, 4),
+        "sheet_names": profile.sheet_names or [],
+        "used_sheets": profile.used_sheets or [],
+        "skipped_sheets": profile.skipped_sheets or [],
     }
+
+
+def stats_path(reports_dir: Path) -> Path:
+    return reports_dir / "usage_stats.json"
+
+
+def load_usage_stats(reports_dir: Path) -> dict[str, Any]:
+    path = stats_path(reports_dir)
+    if not path.exists():
+        return {
+            "files_analyzed": 0,
+            "rows_analyzed": 0,
+            "numeric_columns_analyzed": 0,
+            "sheets_analyzed": 0,
+            "last_source": "",
+        }
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            "files_analyzed": 0,
+            "rows_analyzed": 0,
+            "numeric_columns_analyzed": 0,
+            "sheets_analyzed": 0,
+            "last_source": "",
+        }
+
+
+def record_usage(reports_dir: Path, source_name: str, profile_payload: dict[str, Any]) -> dict[str, Any]:
+    stats = load_usage_stats(reports_dir)
+    used_sheets = profile_payload.get("used_sheets") or []
+    stats["files_analyzed"] = int(stats.get("files_analyzed", 0)) + 1
+    stats["rows_analyzed"] = int(stats.get("rows_analyzed", 0)) + int(profile_payload.get("rows", 0))
+    stats["numeric_columns_analyzed"] = int(stats.get("numeric_columns_analyzed", 0)) + len(profile_payload.get("numeric_columns", []))
+    stats["sheets_analyzed"] = int(stats.get("sheets_analyzed", 0)) + max(len(used_sheets), 1)
+    stats["last_source"] = source_name
+    stats_path(reports_dir).write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    return stats
 
 
 def _screening_payload(records: list[ColumnScreening]) -> list[dict[str, Any]]:
@@ -115,18 +157,23 @@ def analyze_dataframe(
     source_name: str,
     reports_dir: Path,
     base_path: str = "/agri-trust",
+    record_stats: bool = False,
 ) -> dict[str, Any]:
     prepared, profile = profile_data(df)
     screening_records = screen_columns(df, profile)
+    profile_payload = _profile_payload(profile)
 
     if not profile.numeric_columns:
+        if record_stats:
+            record_usage(reports_dir, source_name, profile_payload)
         return {
             "ok": False,
             "message": "未识别到可分析的数值列。请检查文件是否包含至少一个可解析率 >= 70%、有效唯一值数 >= 3 的数值列。",
             "source_name": source_name,
-            "profile": _profile_payload(profile),
+            "profile": profile_payload,
             "screening": _screening_payload(screening_records),
             "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
+            "stats": load_usage_stats(reports_dir),
         }
 
     analysis = run_full_analysis(prepared, profile.numeric_columns, reports_dir)
@@ -137,15 +184,17 @@ def analyze_dataframe(
         reports_dir,
         screening_records=screening_records,
     )
+    stats = record_usage(reports_dir, source_name, profile_payload) if record_stats else load_usage_stats(reports_dir)
 
     return {
         "ok": True,
         "source_name": source_name,
-        "profile": _profile_payload(profile),
+        "profile": profile_payload,
         "screening": _screening_payload(screening_records),
         "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
         "analysis": _analysis_payload(analysis, base_path),
         "report_url": f"{base_path}/reports/{html_path.name}",
+        "stats": stats,
     }
 
 
@@ -154,7 +203,7 @@ def analyze_file_bytes(
     filename: str,
     reports_dir: Path,
     base_path: str = "/agri-trust",
+    record_stats: bool = False,
 ) -> dict[str, Any]:
     df = load_data(BytesIO(content), filename)
-    return analyze_dataframe(df, filename, reports_dir, base_path)
-
+    return analyze_dataframe(df, filename, reports_dir, base_path, record_stats=record_stats)

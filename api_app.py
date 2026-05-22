@@ -6,7 +6,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.analysis_service import analyze_dataframe, analyze_file_bytes
+from src.analysis_service import analyze_dataframe, analyze_file_bytes, load_usage_stats
 from src.loader import load_data
 
 
@@ -53,6 +53,12 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/stats")
+@app.get(f"{BASE_PATH}/api/stats")
+def usage_stats() -> dict:
+    return load_usage_stats(REPORTS_DIR)
+
+
 @app.post("/api/analyze")
 @app.post(f"{BASE_PATH}/api/analyze")
 async def analyze_upload(file: UploadFile = File(...)) -> dict:
@@ -60,7 +66,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=400, detail="请上传 CSV、XLSX 或 XLS 文件。")
     try:
         content = await file.read()
-        return analyze_file_bytes(content, file.filename, REPORTS_DIR, BASE_PATH)
+        return analyze_file_bytes(content, file.filename, REPORTS_DIR, BASE_PATH, record_stats=True)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"分析失败：{exc}") from exc
 
@@ -77,4 +83,3 @@ def analyze_sample(kind: str) -> dict:
     filename = sample_map[kind]
     df = load_data(DATA_DIR / filename)
     return analyze_dataframe(df, filename, REPORTS_DIR, BASE_PATH)
-

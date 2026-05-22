@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/styles.css?v=20260522">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -47,15 +47,16 @@
           </div>
         </div>
 
-        <aside class="hero-panel">
+        <aside class="hero-panel" :class="riskClass">
           <div class="panel-top">
             <span></span><span></span><span></span>
           </div>
           <div class="score-orbit">
             <div class="score-ring" :style="scoreStyle">
-              <div>
+              <div class="score-core">
+                <span>可信度评分</span>
                 <strong>{{ totalScore }}</strong>
-                <span>/100</span>
+                <em>满分 100</em>
               </div>
             </div>
             <div>
@@ -70,6 +71,15 @@
               <i><b :style="{width: item.score + '%'}"></b></i>
               <em>{{ item.score }}</em>
             </div>
+          </div>
+          <div v-if="loading || progress" class="progress-box">
+            <div class="progress-track"><i :style="{width: progress + '%'}"></i></div>
+            <span>{{ progressText }}</span>
+          </div>
+          <div v-if="stats" class="stats-strip">
+            <div><strong>{{ stats.files_analyzed || 0 }}</strong><span>已分析文件</span></div>
+            <div><strong>{{ stats.rows_analyzed || 0 }}</strong><span>累计数据行</span></div>
+            <div><strong>{{ stats.sheets_analyzed || 0 }}</strong><span>累计 sheet</span></div>
           </div>
         </aside>
       </section>
@@ -91,6 +101,12 @@
           <span>整体缺失率</span>
           <strong>{{ pct(result.profile.missing_rate) }}</strong>
         </article>
+      </section>
+
+      <section v-if="result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length" class="glass-section sheet-note">
+        <span class="section-title">Excel Sheet 处理</span>
+        <p v-if="result.profile.used_sheets.length">已合并分析：{{ result.profile.used_sheets.join('、') }}</p>
+        <p v-if="result.profile.skipped_sheets.length">已跳过空 sheet：{{ result.profile.skipped_sheets.join('、') }}</p>
       </section>
 
       <section v-if="result?.ok" class="workspace">
@@ -202,7 +218,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="assets/theme.js?v=20260522"></script>
+  <script src="assets/app.js?v=20260522"></script>
 </body>
 </html>

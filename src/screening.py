@@ -6,6 +6,7 @@ import warnings
 import pandas as pd
 
 from .profiler import DataProfile
+from .profiler import is_identifier_column
 
 
 @dataclass
@@ -25,6 +26,7 @@ class ColumnScreening:
 def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreening]:
     records: list[ColumnScreening] = []
     numeric_set = set(profile.numeric_columns)
+    min_valid_count = min(max(8, int(len(df) * 0.08)), 30)
 
     for col in df.columns:
         series = df[col]
@@ -33,12 +35,14 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
         missing_rate = 1 - non_null_count / max(len(series), 1)
         unique_count = int(non_null.nunique(dropna=True))
         numeric_valid_rate = float(pd.to_numeric(series, errors="coerce").notna().mean())
+        numeric_valid_count = int(pd.to_numeric(series, errors="coerce").notna().sum())
 
         name_hint = any(
             key in str(col).lower()
             for key in ["time", "date", "timestamp", "datetime", "采集", "日期", "时间"]
         )
         numeric_like = numeric_valid_rate >= 0.8
+        parsed_dates = pd.Series(dtype="datetime64[ns]")
         if numeric_like and not name_hint:
             datetime_valid_rate = 0.0
         else:
@@ -46,12 +50,22 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
                 warnings.simplefilter("ignore", UserWarning)
                 parsed_dates = pd.to_datetime(series, errors="coerce")
             datetime_valid_rate = float(parsed_dates.notna().mean())
-        date_like = datetime_valid_rate >= 0.6 and (name_hint or not numeric_like)
+        valid_dates = parsed_dates.dropna() if "parsed_dates" in locals() else pd.Series(dtype="datetime64[ns]")
+        plausible_year_rate = (
+            float(((valid_dates.dt.year >= 1990) & (valid_dates.dt.year <= 2100)).mean())
+            if len(valid_dates)
+            else 0.0
+        )
+        date_like = datetime_valid_rate >= 0.6 and plausible_year_rate >= 0.8 and (name_hint or not numeric_like)
 
         if non_null_count == 0:
             role = "空列"
             entered = False
             handling = "整列为空，不进入可信度指标计算；在数据概况中体现为缺失。"
+        elif is_identifier_column(col):
+            role = "编号/代码列"
+            entered = False
+            handling = "该列看起来是序号、编号或行政区代码，用于标识记录，不代表农业采集指标；已排除出可信度评分。"
         elif col == profile.time_column:
             role = "时间列"
             entered = False
@@ -60,6 +74,10 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
             role = "数值检测列"
             entered = True
             handling = "进入五类可信度检测；缺失值不填补，在各指标计算前按需剔除。"
+        elif numeric_valid_rate >= 0.7 and numeric_valid_count < min_valid_count:
+            role = "有效样本不足"
+            entered = False
+            handling = f"该列虽然可转为数值，但有效数值只有 {numeric_valid_count} 个，低于当前最小样本要求 {min_valid_count} 个；为避免少量值误导评分，已剔除并在粗筛表反馈。"
         elif numeric_valid_rate >= 0.7 and unique_count < 3:
             role = "数值但变化不足"
             entered = False
