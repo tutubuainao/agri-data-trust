@@ -35,7 +35,7 @@ createApp({
     scoreStyle() {
       const score = Number(this.result?.analysis?.total_score || 0);
       const deg = Math.max(0, Math.min(100, score)) * 3.6;
-      return { background: `conic-gradient(#36d399 ${deg}deg, rgba(255,255,255,.1) 0deg)` };
+      return { background: `conic-gradient(var(--green) ${deg}deg, var(--bar-track) 0deg)` };
     },
     subScoreItems() {
       const scores = this.result?.analysis?.sub_scores || {};
@@ -96,4 +96,3 @@ createApp({
     this.loadSample("real");
   },
 }).mount("#app");
-
