@@ -6,6 +6,7 @@ SERVER_HOST="${SERVER_HOST:-39.106.238.181}"
 SERVER_USER="${SERVER_USER:-root}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/agri_data_trust_deploy}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/agri-data-trust}"
+REMOTE_DATA_DIR="${REMOTE_DATA_DIR:-/opt/agri-data-trust-data}"
 REMOTE_ARCHIVE="/tmp/${APP_NAME}-deploy.tar.gz"
 PUBLIC_URL="${PUBLIC_URL:-http://39.106.238.181/agri-trust/}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
@@ -40,7 +41,7 @@ scp -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$ARCHIVE" "${SERVER_USER}
 
 echo "==> Deploying on server"
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "${SERVER_USER}@${SERVER_HOST}" \
-  "REMOTE_DIR='${REMOTE_DIR}' REMOTE_ARCHIVE='${REMOTE_ARCHIVE}' PIP_INDEX_URL='${PIP_INDEX_URL}' bash -s" <<'REMOTE'
+  "REMOTE_DIR='${REMOTE_DIR}' REMOTE_DATA_DIR='${REMOTE_DATA_DIR}' REMOTE_ARCHIVE='${REMOTE_ARCHIVE}' PIP_INDEX_URL='${PIP_INDEX_URL}' bash -s" <<'REMOTE'
 set -euo pipefail
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
@@ -86,6 +87,7 @@ fi
 .venv/bin/pip install -r requirements.txt -i "$PIP_INDEX_URL" --timeout 120
 
 mkdir -p reports .mplconfig .cache
+mkdir -p "$REMOTE_DATA_DIR"
 find reports -maxdepth 1 -type f -name '*.md' -delete
 
 ensure_chinese_fonts() {
@@ -112,6 +114,7 @@ User=root
 WorkingDirectory=/opt/agri-data-trust
 Environment=MPLCONFIGDIR=/opt/agri-data-trust/.mplconfig
 Environment=XDG_CACHE_HOME=/opt/agri-data-trust/.cache
+Environment=USAGE_DB_PATH=/opt/agri-data-trust-data/usage.sqlite
 ExecStart=/opt/agri-data-trust/.venv/bin/uvicorn api_app:app --host 127.0.0.1 --port 8501
 Restart=always
 RestartSec=5

@@ -3,7 +3,9 @@ from __future__ import annotations
 import math
 from io import BytesIO
 import json
+import os
 from pathlib import Path
+import sqlite3
 from typing import Any
 
 import numpy as np
@@ -57,38 +59,113 @@ def stats_path(reports_dir: Path) -> Path:
     return reports_dir / "usage_stats.json"
 
 
-def load_usage_stats(reports_dir: Path) -> dict[str, Any]:
+def stats_db_path(reports_dir: Path) -> Path:
+    configured = os.getenv("USAGE_DB_PATH")
+    if configured:
+        return Path(configured)
+    return reports_dir / "usage_stats.sqlite"
+
+
+def _empty_usage_stats() -> dict[str, Any]:
+    return {
+        "files_analyzed": 0,
+        "rows_analyzed": 0,
+        "numeric_columns_analyzed": 0,
+        "sheets_analyzed": 0,
+        "last_source": "",
+    }
+
+
+def _legacy_usage_stats(reports_dir: Path) -> dict[str, Any]:
     path = stats_path(reports_dir)
     if not path.exists():
-        return {
-            "files_analyzed": 0,
-            "rows_analyzed": 0,
-            "numeric_columns_analyzed": 0,
-            "sheets_analyzed": 0,
-            "last_source": "",
-        }
+        return _empty_usage_stats()
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return {**_empty_usage_stats(), **json.loads(path.read_text(encoding="utf-8"))}
     except json.JSONDecodeError:
-        return {
-            "files_analyzed": 0,
-            "rows_analyzed": 0,
-            "numeric_columns_analyzed": 0,
-            "sheets_analyzed": 0,
-            "last_source": "",
-        }
+        return _empty_usage_stats()
+
+
+def _connect_usage_db(reports_dir: Path) -> sqlite3.Connection:
+    path = stats_db_path(reports_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS usage_stats (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            files_analyzed INTEGER NOT NULL DEFAULT 0,
+            rows_analyzed INTEGER NOT NULL DEFAULT 0,
+            numeric_columns_analyzed INTEGER NOT NULL DEFAULT 0,
+            sheets_analyzed INTEGER NOT NULL DEFAULT 0,
+            last_source TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    row = conn.execute("SELECT COUNT(*) FROM usage_stats WHERE id = 1").fetchone()
+    if row[0] == 0:
+        legacy = _legacy_usage_stats(reports_dir)
+        conn.execute(
+            """
+            INSERT INTO usage_stats (
+                id, files_analyzed, rows_analyzed, numeric_columns_analyzed,
+                sheets_analyzed, last_source
+            ) VALUES (1, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(legacy.get("files_analyzed", 0)),
+                int(legacy.get("rows_analyzed", 0)),
+                int(legacy.get("numeric_columns_analyzed", 0)),
+                int(legacy.get("sheets_analyzed", 0)),
+                str(legacy.get("last_source", "")),
+            ),
+        )
+        conn.commit()
+    return conn
+
+
+def load_usage_stats(reports_dir: Path) -> dict[str, Any]:
+    with _connect_usage_db(reports_dir) as conn:
+        row = conn.execute(
+            """
+            SELECT files_analyzed, rows_analyzed, numeric_columns_analyzed,
+                   sheets_analyzed, last_source
+            FROM usage_stats WHERE id = 1
+            """
+        ).fetchone()
+    if row is None:
+        return _empty_usage_stats()
+    return {
+        "files_analyzed": int(row[0]),
+        "rows_analyzed": int(row[1]),
+        "numeric_columns_analyzed": int(row[2]),
+        "sheets_analyzed": int(row[3]),
+        "last_source": row[4] or "",
+    }
 
 
 def record_usage(reports_dir: Path, source_name: str, profile_payload: dict[str, Any]) -> dict[str, Any]:
-    stats = load_usage_stats(reports_dir)
     used_sheets = profile_payload.get("used_sheets") or []
-    stats["files_analyzed"] = int(stats.get("files_analyzed", 0)) + 1
-    stats["rows_analyzed"] = int(stats.get("rows_analyzed", 0)) + int(profile_payload.get("rows", 0))
-    stats["numeric_columns_analyzed"] = int(stats.get("numeric_columns_analyzed", 0)) + len(profile_payload.get("numeric_columns", []))
-    stats["sheets_analyzed"] = int(stats.get("sheets_analyzed", 0)) + max(len(used_sheets), 1)
-    stats["last_source"] = source_name
-    stats_path(reports_dir).write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
-    return stats
+    with _connect_usage_db(reports_dir) as conn:
+        conn.execute(
+            """
+            UPDATE usage_stats
+            SET files_analyzed = files_analyzed + 1,
+                rows_analyzed = rows_analyzed + ?,
+                numeric_columns_analyzed = numeric_columns_analyzed + ?,
+                sheets_analyzed = sheets_analyzed + ?,
+                last_source = ?
+            WHERE id = 1
+            """,
+            (
+                int(profile_payload.get("rows", 0)),
+                len(profile_payload.get("numeric_columns", [])),
+                max(len(used_sheets), 1),
+                source_name,
+            ),
+        )
+        conn.commit()
+    return load_usage_stats(reports_dir)
 
 
 def _screening_payload(records: list[ColumnScreening]) -> list[dict[str, Any]]:
