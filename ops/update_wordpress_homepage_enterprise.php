@@ -6,6 +6,7 @@ $preview_url = content_url('/uploads/2026/05/agri-trust-preview.png');
 $agri_url = home_url('/agri-trust/');
 $method_url = home_url('/agri-trust/methodology');
 $bio_url = get_permalink(51) ?: home_url('/index.php/%e4%b8%aa%e4%ba%ba%e7%ae%80%e4%bb%8b/');
+$ppt_url = get_permalink(17) ?: home_url('/');
 
 $css = <<<CSS
 body.home .entry-title,
@@ -56,7 +57,6 @@ body.page-id-59 .entry-content {
   margin: 0 auto;
 }
 .ph-hero {
-  min-height: 86vh;
   display: flex;
   align-items: center;
   background: linear-gradient(180deg, #ffffff 0%, #f4f8f5 100%);
@@ -67,7 +67,7 @@ body.page-id-59 .entry-content {
   grid-template-columns: 0.92fr 1.08fr;
   gap: 42px;
   align-items: center;
-  padding: 46px 0 58px;
+  padding: 34px 0 54px;
 }
 .ph-eyebrow {
   display: inline-flex;
@@ -210,6 +210,13 @@ body.page-id-59 .entry-content {
   border-radius: 12px;
   background: #ffffff;
   padding: 28px;
+  text-decoration: none !important;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.ph-next-card[href]:hover {
+  transform: translateY(-3px);
+  border-color: #b9cdbf;
+  box-shadow: 0 18px 40px rgba(17, 24, 39, 0.08);
 }
 .ph-panel h3,
 .ph-next-card h3 {
@@ -301,16 +308,13 @@ body.page-id-59 .entry-content {
   .ph-container {
     width: min(100% - 36px, 1180px);
   }
-  .ph-hero {
-    min-height: auto;
-  }
   .ph-hero-grid,
   .ph-project-grid,
   .ph-next-grid {
     grid-template-columns: 1fr;
   }
   .ph-hero-grid {
-    padding: 34px 0 42px;
+    padding: 22px 0 36px;
   }
   .ph-score-card {
     position: static;
@@ -392,11 +396,11 @@ $content = <<<HTML
           <h3>传感器漂移检测</h3>
           <p>后续可加入时间漂移、采样完整性和跨设备一致性检测。</p>
         </article>
-        <article class="ph-next-card">
+        <a class="ph-next-card" href="$ppt_url" target="_blank" rel="noopener">
           <small>统计建模方向</small>
-          <h3>概率统计实验</h3>
-          <p>保留课程实验和统计分析内容，作为学习记录和作品集补充。</p>
-        </article>
+          <h3>PPT放映测试</h3>
+          <p>打开已有的 WordPress 页面，用于展示课程内容、概率统计实验或后续整理的演示材料。</p>
+        </a>
         <article class="ph-next-card">
           <small>简历展示方向</small>
           <h3>项目经历整理</h3>
@@ -420,6 +424,7 @@ $content = <<<HTML
 </main>
 HTML;
 
+$elementor_content = $content;
 $content = "<!-- wp:html -->\n" . $content . "\n<!-- /wp:html -->";
 
 $existing = get_page_by_path('portfolio-home', OBJECT, 'page');
@@ -449,6 +454,31 @@ $css = str_replace('body.page-id-59', 'body.page-id-' . $page_id, $css);
 wp_update_custom_css_post($css);
 
 update_post_meta($page_id, '_wp_page_template', 'default');
+update_post_meta($page_id, '_elementor_edit_mode', 'builder');
+update_post_meta($page_id, '_elementor_template_type', 'wp-page');
+update_post_meta($page_id, '_elementor_version', defined('ELEMENTOR_VERSION') ? ELEMENTOR_VERSION : '3.32.1');
+update_post_meta($page_id, '_elementor_data', wp_slash(wp_json_encode([
+    [
+        'id' => 'phhome01',
+        'elType' => 'container',
+        'settings' => [],
+        'elements' => [
+            [
+                'id' => 'phhtml01',
+                'elType' => 'widget',
+                'settings' => [
+                    'html' => $elementor_content,
+                ],
+                'elements' => [],
+                'widgetType' => 'html',
+            ],
+        ],
+        'isInner' => false,
+    ],
+])));
+if (class_exists('\Elementor\Plugin')) {
+    \Elementor\Plugin::instance()->files_manager->clear_cache();
+}
 update_option('show_on_front', 'page');
 update_option('page_on_front', $page_id);
 
@@ -503,5 +533,6 @@ echo json_encode([
     'front_url' => home_url('/'),
     'agri_url' => $agri_url,
     'method_url' => $method_url,
+    'ppt_url' => $ppt_url,
     'preview_url' => $preview_url,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
