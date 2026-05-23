@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523s">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523u">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -38,6 +38,7 @@
             </select>
             <span>{{ selectedScenarioDescription }}</span>
           </div>
+          <p class="scenario-note">规则场景会影响两件事：物理范围与单位规则的匹配方式，以及九类指标汇总为总分时的权重。各子评分仍按同一套公式计算，便于复核。</p>
           <div class="hero-actions">
             <label class="primary-action">
               <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
@@ -196,7 +197,23 @@
               <article v-for="item in subScoreItems" :key="item.key" class="indicator-card">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.score }}</strong>
-                <small>{{ item.risk }}</small>
+                <small>{{ item.risk }}<template v-if="item.weight !== null"> · 权重 {{ pct(item.weight) }}</template></small>
+              </article>
+            </div>
+          </section>
+
+          <section v-if="weightItems.length" class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">当前规则场景权重</span>
+                <h2>{{ result.scenario?.label || selectedScenarioLabel }}的总分权重</h2>
+                <p class="section-desc">这些权重只影响总分汇总；每个指标的子评分仍按评分标准页面中的固定公式计算。</p>
+              </div>
+            </div>
+            <div class="weight-grid">
+              <article v-for="item in weightItems" :key="item.key" class="weight-card">
+                <span>{{ item.label }}</span>
+                <strong>{{ pct(item.weight) }}</strong>
               </article>
             </div>
           </section>
@@ -317,7 +334,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260523s"></script>
-  <script src="assets/app.js?v=20260523s"></script>
+  <script src="assets/theme.js?v=20260523u"></script>
+  <script src="assets/app.js?v=20260523u"></script>
 </body>
 </html>

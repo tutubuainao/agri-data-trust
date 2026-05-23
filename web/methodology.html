@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523s">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523u">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -47,7 +47,25 @@
       </div>
       <div class="formula-box">
         <span>总分公式</span>
-        <p class="formula">S = 0.18S<sub>平滑度</sub> + 0.16S<sub>时间序列</sub> + 0.13S<sub>数字规律</sub> + 0.06S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.06S<sub>变化点</sub> + 0.04S<sub>采样完整性</sub> + 0.04S<sub>物理规则</sub> + 0.19S<sub>相关性</sub></p>
+        <p class="formula">S = Σ(W<sub>i</sub> × S<sub>i</sub>)</p>
+        <p>其中 <code>S_i</code> 是第 i 个指标的子评分，<code>W_i</code> 是当前规则场景下的指标权重。所有权重之和为 100%。</p>
+        <p class="formula">自动识别默认：S = 0.18S<sub>平滑度</sub> + 0.16S<sub>时间序列</sub> + 0.13S<sub>数字规律</sub> + 0.06S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.06S<sub>变化点</sub> + 0.04S<sub>采样完整性</sub> + 0.04S<sub>物理规则</sub> + 0.19S<sub>相关性</sub></p>
+      </div>
+      <h3>规则场景如何影响评分</h3>
+      <p>规则场景影响两件事：第一，物理范围与单位异常检测会按场景匹配不同字段规则；第二，总分汇总时会使用不同指标权重。各指标子评分的计算公式不随场景改变，这样用户仍能看到每个指标本身的原始风险。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>场景</th><th>平滑</th><th>时序</th><th>数字</th><th>异常</th><th>漂移</th><th>变点</th><th>采样</th><th>物理</th><th>相关</th><th>适用重点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>自动识别</td><td>18%</td><td>16%</td><td>13%</td><td>6%</td><td>14%</td><td>6%</td><td>4%</td><td>4%</td><td>19%</td><td>通用农业数据，保持均衡判断。</td></tr>
+            <tr><td>温室数据</td><td>16%</td><td>18%</td><td>8%</td><td>8%</td><td>16%</td><td>10%</td><td>8%</td><td>6%</td><td>10%</td><td>连续传感器更关注时序、漂移、变化点和采样完整性。</td></tr>
+            <tr><td>虫害调查</td><td>10%</td><td>8%</td><td>14%</td><td>12%</td><td>8%</td><td>14%</td><td>8%</td><td>14%</td><td>12%</td><td>计数和比例表更关注数字规律、物理规则、阶段变化和异常波动。</td></tr>
+            <tr><td>产量调查</td><td>10%</td><td>8%</td><td>12%</td><td>12%</td><td>8%</td><td>10%</td><td>10%</td><td>14%</td><td>16%</td><td>农艺调查更关注非负范围、变量关系和采样完整性。</td></tr>
+            <tr><td>农残检测</td><td>8%</td><td>6%</td><td>16%</td><td>12%</td><td>6%</td><td>10%</td><td>8%</td><td>20%</td><td>14%</td><td>检测数据更关注物理范围、单位、数字精度、异常点和变量关系。</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -236,7 +254,7 @@
 
         <details>
           <summary>8. 物理范围与单位异常检测</summary>
-          <p>目标是用农业常识做防呆复核。用户可选择“温室数据 / 虫害调查 / 产量调查 / 农残检测”等场景，系统按字段名称匹配规则。该指标只提示单位、量纲或录入风险，不替代法规限量或专家判定。</p>
+          <p>目标是用农业常识做防呆复核。用户可选择“温室数据 / 虫害调查 / 产量调查 / 农残检测”等场景，系统按字段名称匹配规则，并在总分公式中切换对应场景权重。该指标只提示单位、量纲或录入风险，不替代法规限量或专家判定。</p>
           <ul>
             <li>温室数据：温度、湿度、土壤水分、光照、CO2、pH、EC。</li>
             <li>虫害调查：卵量、幼虫、成虫、诱捕量、寄生率。</li>
@@ -305,6 +323,6 @@
       <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、变化点模型或深度异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js?v=20260523s"></script>
+  <script src="assets/theme.js?v=20260523u"></script>
 </body>
 </html>

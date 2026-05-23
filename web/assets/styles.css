@@ -259,6 +259,13 @@ main {
   line-height: 1.5;
 }
 
+.scenario-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.68;
+}
+
 .primary-action,
 .ghost-action,
 .download-report {
@@ -662,6 +669,33 @@ th {
   display: block;
   margin: 10px 0;
   font-size: 2.2rem;
+}
+
+.weight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 12px;
+}
+
+.weight-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-card);
+  padding: 14px;
+}
+
+.weight-card span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.weight-card strong {
+  color: var(--green);
+  font-size: 1.18rem;
 }
 
 .column-grid {

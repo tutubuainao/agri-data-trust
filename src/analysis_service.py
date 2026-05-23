@@ -218,6 +218,10 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
     return {
         "total_score": round(float(analysis["total_score"]), 2),
         "risk_level": analysis["risk_level"],
+        "weights": {
+            key: round(float(value), 4)
+            for key, value in analysis.get("weights", {}).items()
+        },
         "sub_scores": {
             key: {
                 "score": round(float(value), 2),

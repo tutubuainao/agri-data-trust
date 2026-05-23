@@ -25,7 +25,7 @@ COLUMN_INDICATORS = {
     "changepoint": ("变化点检测", analyze_changepoints),
 }
 
-INDICATOR_WEIGHTS = {
+DEFAULT_INDICATOR_WEIGHTS = {
     "smoothness": 0.18,
     "timeseries": 0.16,
     "digit": 0.13,
@@ -36,6 +36,58 @@ INDICATOR_WEIGHTS = {
     "physical": 0.04,
     "correlation": 0.19,
 }
+
+SCENARIO_INDICATOR_WEIGHTS = {
+    "auto": DEFAULT_INDICATOR_WEIGHTS,
+    "greenhouse": {
+        "smoothness": 0.16,
+        "timeseries": 0.18,
+        "digit": 0.08,
+        "outlier": 0.08,
+        "drift": 0.16,
+        "changepoint": 0.10,
+        "sampling": 0.08,
+        "physical": 0.06,
+        "correlation": 0.10,
+    },
+    "pest": {
+        "smoothness": 0.10,
+        "timeseries": 0.08,
+        "digit": 0.14,
+        "outlier": 0.12,
+        "drift": 0.08,
+        "changepoint": 0.14,
+        "sampling": 0.08,
+        "physical": 0.14,
+        "correlation": 0.12,
+    },
+    "yield": {
+        "smoothness": 0.10,
+        "timeseries": 0.08,
+        "digit": 0.12,
+        "outlier": 0.12,
+        "drift": 0.08,
+        "changepoint": 0.10,
+        "sampling": 0.10,
+        "physical": 0.14,
+        "correlation": 0.16,
+    },
+    "residue": {
+        "smoothness": 0.08,
+        "timeseries": 0.06,
+        "digit": 0.16,
+        "outlier": 0.12,
+        "drift": 0.06,
+        "changepoint": 0.10,
+        "sampling": 0.08,
+        "physical": 0.20,
+        "correlation": 0.14,
+    },
+}
+
+
+def indicator_weights_for_scenario(scenario: str | None) -> dict[str, float]:
+    return dict(SCENARIO_INDICATOR_WEIGHTS.get(scenario or "auto", DEFAULT_INDICATOR_WEIGHTS))
 
 
 def risk_level(score: float) -> str:
@@ -82,7 +134,8 @@ def run_full_analysis(
         "correlation": round(float(correlation_result["score"]), 2),
     }
 
-    total_score = round(sum(sub_scores[key] * INDICATOR_WEIGHTS[key] for key in INDICATOR_WEIGHTS), 2)
+    weights = indicator_weights_for_scenario(scenario)
+    total_score = round(sum(sub_scores[key] * weights[key] for key in weights), 2)
     dataset_results = {
         "sampling": sampling_result,
         "physical": physical_result,
@@ -92,6 +145,7 @@ def run_full_analysis(
     return {
         "total_score": total_score,
         "risk_level": risk_level(total_score),
+        "weights": weights,
         "sub_scores": sub_scores,
         "column_results": column_results,
         "dataset_results": dataset_results,
@@ -131,7 +185,7 @@ def collect_top_reasons(
     return [reason for _, reason in ranked[:limit]]
 
 
-def sub_scores_dataframe(sub_scores: dict[str, float]) -> pd.DataFrame:
+def sub_scores_dataframe(sub_scores: dict[str, float], weights: dict[str, float] | None = None) -> pd.DataFrame:
     labels = {
         "smoothness": "平滑度检测",
         "timeseries": "时间序列自然性检测",
@@ -143,6 +197,12 @@ def sub_scores_dataframe(sub_scores: dict[str, float]) -> pd.DataFrame:
         "physical": "物理范围与单位检测",
         "correlation": "多变量相关性检测",
     }
+    rows = []
+    for key, value in sub_scores.items():
+        row = {"指标": labels[key], "子评分": value, "风险等级": risk_level(value)}
+        if weights is not None:
+            row["当前权重"] = f"{weights.get(key, 0) * 100:.0f}%"
+        rows.append(row)
     return pd.DataFrame(
-        [{"指标": labels[key], "子评分": value, "风险等级": risk_level(value)} for key, value in sub_scores.items()]
+        rows
     )

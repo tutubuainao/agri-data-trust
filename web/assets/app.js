@@ -69,11 +69,11 @@ createApp({
       alertMessage: "",
       scenario: "auto",
       scenarioOptions: [
-        { value: "auto", label: "自动识别", description: "按字段名称匹配通用农业规则" },
-        { value: "greenhouse", label: "温室数据", description: "温度、湿度、土壤水分、光照等传感器" },
-        { value: "pest", label: "虫害调查", description: "卵量、幼虫、成虫、诱捕量、寄生率" },
-        { value: "yield", label: "产量调查", description: "产量、面积、株高、重量等农艺调查" },
-        { value: "residue", label: "农残检测", description: "农药残留、检出限、浓度或含量" },
+        { value: "auto", label: "自动识别", description: "通用农业规则，九类指标采用均衡默认权重" },
+        { value: "greenhouse", label: "温室数据", description: "强化时序、漂移、变化点和采样完整性，适合连续传感器" },
+        { value: "pest", label: "虫害调查", description: "强化计数/比例、物理规则、变化点和异常点，适合调查表" },
+        { value: "yield", label: "产量调查", description: "强化物理范围、相关性、采样完整性和农艺非负规则" },
+        { value: "residue", label: "农残检测", description: "强化物理范围、数字精度、异常点和浓度非负规则" },
       ],
     };
   },
@@ -106,13 +106,21 @@ createApp({
     },
     subScoreItems() {
       const scores = this.result?.analysis?.sub_scores || {};
+      const weights = this.result?.analysis?.weights || {};
       return Object.entries(labels).map(([key, [label, short]]) => ({
         key,
         label,
         short,
         score: Math.round(scores[key]?.score ?? 0),
         risk: scores[key]?.risk_level ?? "待检测",
+        weight: weights[key] ?? null,
       }));
+    },
+    weightItems() {
+      const weights = this.result?.analysis?.weights || {};
+      return Object.entries(labels)
+        .map(([key, [label]]) => ({ key, label, weight: weights[key] }))
+        .filter((item) => item.weight !== undefined);
     },
     chartUrls() {
       if (!this.result?.ok) return [];

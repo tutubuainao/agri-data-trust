@@ -86,7 +86,10 @@ def generate_html_report(
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     numeric_columns = ", ".join(profile.numeric_columns) if profile.numeric_columns else "未识别"
     reasons = "\n".join(f"<li>{escape(reason)}</li>" for reason in analysis["reasons"])
-    score_table = sub_scores_dataframe(analysis["sub_scores"]).to_html(index=False, escape=True)
+    score_table = sub_scores_dataframe(
+        analysis["sub_scores"],
+        analysis.get("weights"),
+    ).to_html(index=False, escape=True)
     scenario_label = escape((scenario or {}).get("label", "自动识别"))
 
     column_sections: list[str] = []
