@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523r">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523s">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -124,22 +124,22 @@
 
         <details>
           <summary>3. 小数位和数字规律检测</summary>
-          <p>目标是识别人工录入或生成数据常见的“数字太整齐”现象。真实传感器数据的小数位、尾数和重复值通常不会过于集中。</p>
+          <p>目标是识别人工录入或生成数据常见的“数字太整齐”现象。系统会先区分连续传感器数值和计数型调查指标：温度、湿度、残留浓度等连续值不应长期过于整齐；卵块、卵粒数、成虫数等计数型指标天然可以全部为整数。</p>
           <ul>
             <li>整数比例：统计 <code>x mod 1 = 0</code> 的比例。</li>
             <li>小数位分布：统计 0 位、1 位、2 位等小数精度是否异常集中。</li>
-            <li>尾数分布：统计末位数字 0-9 的频率，检测是否大量集中在 0、5 或固定尾数。</li>
+            <li>末位数字分布：统计最后一位有效数字 0-9 的频率，检测是否大量集中在 0、5 或固定尾数。</li>
             <li>重复值比例：统计众数占比和连续重复长度。</li>
             <li>固定步长：观察相邻差分是否频繁落在同一个值。</li>
           </ul>
           <div class="formula-box compact-formula">
             <span>简化扣分公式</span>
             <p class="formula">S<sub>数字</sub> = max(0, 100 - P<sub>int</sub> - P<sub>decimal</sub> - P<sub>tail</sub> - P<sub>round</sub> - P<sub>dup</sub>)</p>
-            <p>当前版本使用连续扣分：数字规律越集中，扣分越多；刚超过阈值时只是轻微风险，接近 100% 集中时才扣满。</p>
+            <p>当前版本使用连续扣分：数字规律越集中，扣分越多；刚超过阈值时只是轻微风险，接近 100% 集中时才扣满。若字段名显示为计数型整数列，例如卵块、卵粒数、幼虫数、成虫数、株数、出蜂数，且数值为非负整数，则整数比例、小数位一致和 0.05 倍数不扣分。</p>
             <dl class="symbol-list">
               <dt>P<sub>int</sub></dt><dd>整数比例扣分。统计整数比例 <code>Rint</code>。当 <code>Rint <= 0.75</code> 时扣 0；当它从 0.75 升到 1 时，扣分从 0 连续增加到 24。</dd>
               <dt>P<sub>decimal</sub></dt><dd>小数位集中扣分。统计最常见小数位占比 <code>Rdecimal</code>。当 <code>Rdecimal <= 0.90</code> 时扣 0；当它从 0.90 升到 1 时，扣分从 0 连续增加到 20。</dd>
-              <dt>P<sub>tail</sub></dt><dd>尾数集中扣分。统计最常见尾数占比 <code>Rtail</code>。当 <code>Rtail <= 0.35</code> 时扣 0；当它从 0.35 升到 1 时，扣分从 0 连续增加到 18。</dd>
+              <dt>P<sub>tail</sub></dt><dd>末位数字集中扣分。统计最后一位有效数字的最常见占比 <code>Rtail</code>。连续型字段中，当 <code>Rtail <= 0.35</code> 时扣 0；当它从 0.35 升到 1 时，扣分从 0 连续增加到 18。计数型字段阈值放宽为 0.65 到 0.95，最多扣 8 分。</dd>
               <dt>P<sub>round</sub></dt><dd>固定刻度扣分。统计落在 0.05 整数倍上的比例 <code>Rround</code>。当 <code>Rround <= 0.80</code> 时扣 0；当它从 0.80 升到 1 时，扣分从 0 连续增加到 16。</dd>
               <dt>P<sub>dup</sub></dt><dd>重复值扣分。计算重复比例 <code>Rdup = 1 - 唯一值数量 / 有效样本数</code>。当 <code>Rdup <= 0.45</code> 时扣 0；当它从 0.45 升到 1 时，扣分从 0 连续增加到 12。</dd>
             </dl>
@@ -305,6 +305,6 @@
       <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、变化点模型或深度异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js?v=20260523r"></script>
+  <script src="assets/theme.js?v=20260523s"></script>
 </body>
 </html>

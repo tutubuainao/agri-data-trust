@@ -27,8 +27,8 @@ const chartHelp = [
   },
   {
     token: "digits",
-    title: "尾数分布",
-    description: "统计数值末位数字 0-9 的出现次数，用来观察是否过度集中在 0、5 或某个固定尾数。",
+    title: "末位数字分布",
+    description: "统计数值最后一位有效数字 0-9 的出现次数。计数型整数列会按调查计数规则降权，避免把天然整数误判为过度整齐。",
   },
   {
     token: "outlier",
