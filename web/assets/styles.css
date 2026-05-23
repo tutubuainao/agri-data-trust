@@ -608,7 +608,7 @@ th {
 }
 
 .indicator-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
 }
 
 .indicator-card,

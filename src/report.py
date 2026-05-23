@@ -51,7 +51,7 @@ def _screening_table(records: list[ColumnScreening] | None) -> str:
     )
     return f"""
     <h2>文件粗筛</h2>
-    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入五类可信度检测。</p>
+    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入六类可信度检测。</p>
     <table>
       <thead>
         <tr>

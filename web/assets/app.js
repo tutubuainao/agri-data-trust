@@ -5,6 +5,7 @@ const labels = {
   timeseries: ["时间序列自然性", "时序"],
   digit: ["小数位/数字规律", "数字"],
   outlier: ["异常点分布", "异常"],
+  drift: ["传感器漂移", "漂移"],
   correlation: ["多变量相关性", "相关"],
 };
 
@@ -30,6 +31,11 @@ const chartHelp = [
     token: "outlier",
     title: "异常点扫描",
     description: "展示数值序列的整体波动形态，用来辅助理解 z-score、IQR 和 IsolationForest 检出的异常点比例是否合理。",
+  },
+  {
+    token: "drift",
+    title: "传感器漂移扫描",
+    description: "观察数值基线是否随样本顺序持续偏移，用来提示设备校准变化、长期基线迁移或真实农情趋势。",
   },
   {
     token: "correlation",
@@ -167,7 +173,7 @@ createApp({
           this.progressText = "正在识别 sheet 和字段...";
         } else if (this.progress < 68) {
           this.progress += 5;
-          this.progressText = "正在执行五类可信度检测...";
+          this.progressText = "正在执行六类可信度检测...";
         } else if (this.progress < 92) {
           this.progress += 2;
           this.progressText = "正在生成图表和报告...";

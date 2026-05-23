@@ -6,6 +6,7 @@ import pandas as pd
 
 from .correlation import analyze_correlations
 from .digit_analysis import analyze_digit_patterns
+from .drift import analyze_sensor_drift
 from .outlier import analyze_outliers
 from .smoothness import analyze_smoothness
 from .timeseries import analyze_timeseries_nature
@@ -16,14 +17,16 @@ COLUMN_INDICATORS = {
     "timeseries": ("时间序列自然性检测", analyze_timeseries_nature),
     "digit": ("小数位/数字规律检测", analyze_digit_patterns),
     "outlier": ("异常点分布检测", analyze_outliers),
+    "drift": ("传感器漂移检测", analyze_sensor_drift),
 }
 
 INDICATOR_WEIGHTS = {
-    "smoothness": 0.22,
-    "timeseries": 0.22,
-    "digit": 0.18,
-    "outlier": 0.18,
-    "correlation": 0.20,
+    "smoothness": 0.18,
+    "timeseries": 0.18,
+    "digit": 0.16,
+    "outlier": 0.16,
+    "drift": 0.14,
+    "correlation": 0.18,
 }
 
 
@@ -94,6 +97,7 @@ def sub_scores_dataframe(sub_scores: dict[str, float]) -> pd.DataFrame:
         "timeseries": "时间序列自然性检测",
         "digit": "小数位/数字规律检测",
         "outlier": "异常点分布检测",
+        "drift": "传感器漂移检测",
         "correlation": "多变量相关性检测",
     }
     return pd.DataFrame(

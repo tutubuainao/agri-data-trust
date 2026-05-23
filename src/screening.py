@@ -78,7 +78,7 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
         elif col in numeric_set:
             role = "数值检测列"
             entered = True
-            handling = "进入五类可信度检测；缺失值不填补，在各指标计算前按需剔除。"
+            handling = "进入六类可信度检测；缺失值不填补，在各指标计算前按需剔除。"
         elif numeric_valid_rate >= 0.7 and numeric_valid_count < min_valid_count:
             role = "有效样本不足"
             entered = False
@@ -98,7 +98,7 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
         else:
             role = "未纳入检测"
             entered = False
-            handling = "未满足数值列准入条件，暂不进入五类指标计算。"
+            handling = "未满足数值列准入条件，暂不进入六类指标计算。"
 
         if entered and missing_rate > 0.3:
             handling += " 注意：该列缺失率超过 30%，有效样本会减少，结论需要谨慎解释。"

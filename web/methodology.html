@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260522m">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523d">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -47,7 +47,7 @@
       </div>
       <div class="formula-box">
         <span>总分公式</span>
-        <p class="formula">S = 0.22S<sub>平滑度</sub> + 0.22S<sub>时间序列</sub> + 0.18S<sub>数字规律</sub> + 0.18S<sub>异常点</sub> + 0.20S<sub>相关性</sub></p>
+        <p class="formula">S = 0.18S<sub>平滑度</sub> + 0.18S<sub>时间序列</sub> + 0.16S<sub>数字规律</sub> + 0.16S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.18S<sub>相关性</sub></p>
       </div>
     </section>
 
@@ -56,7 +56,7 @@
       <div class="method-columns">
         <div>
           <h3>列类型处理</h3>
-          <p>时间列用于排序，不参与数值评分。数值可解析率不低于 70%、有效唯一值不少于 3 的非时间列进入五类检测。文本列、分类列、空列、常量列会在粗筛表说明跳过原因。</p>
+          <p>时间列用于排序，不参与数值评分。数值可解析率不低于 70%、有效唯一值不少于 3 的非时间列进入六类检测。文本列、分类列、空列、常量列会在粗筛表说明跳过原因。</p>
         </div>
         <div>
           <h3>缺失值处理</h3>
@@ -74,7 +74,7 @@
     </section>
 
     <section id="principles" class="method-card">
-      <h2>五类检测指标如何计算</h2>
+      <h2>六类检测指标如何计算</h2>
       <p>每个数值列都会分别执行单变量检测，多变量相关性在所有合格数值列之间计算。子评分会先按列汇总，再进入总分公式。</p>
       <div class="metric-accordion">
         <details open>
@@ -169,7 +169,31 @@
         </details>
 
         <details>
-          <summary>5. 多变量相关性检测</summary>
+          <summary>5. 传感器漂移检测</summary>
+          <p>目标是识别同一传感器或同一指标在长期采集中是否出现基线缓慢偏移。它不会直接说明数据造假，也可能对应真实农情变化、传感器老化、校准前后差异或采样环境变化，因此结果只作为复核线索。</p>
+          <ul>
+            <li>前后窗口均值偏移：取序列前后两个窗口，比较 <code>mean(head)</code> 与 <code>mean(tail)</code> 的差距。</li>
+            <li>滚动均值斜率：对滚动均值序列做一元线性拟合，观察基线是否持续单向移动。</li>
+            <li>CUSUM 累积偏差：计算中心化序列的累积和，用于识别阶段性基线迁移。</li>
+            <li>前后窗口方差变化：比较前后窗口标准差，提示设备状态或采集条件是否改变。</li>
+            <li>变化方向单一性：统计相邻差分方向是否长期偏向同一方向。</li>
+          </ul>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>漂移</sub> = max(0, 100 - P<sub>mean</sub> - P<sub>slope</sub> - P<sub>cusum</sub> - P<sub>var</sub> - P<sub>dir</sub>)</p>
+            <p>当前版本使用传统统计方法和连续扣分。先设 <code>scale = max(max(x)-min(x), std(x), epsilon)</code>，用于把不同量纲的温度、湿度、产量等指标转成可比较的相对强度。每个扣分项从风险起点开始逐渐增加，达到极端点才扣满。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>mean</sub></dt><dd>前后窗口均值偏移扣分。计算 <code>Rmean = |mean(tail) - mean(head)| / scale</code>。当 <code>Rmean <= 0.35</code> 时扣 0；当它从 0.35 升到 1 时，扣分从 0 连续增加到 30。</dd>
+              <dt>P<sub>slope</sub></dt><dd>滚动均值斜率扣分。先计算滚动均值 <code>m_t</code>，再用 <code>m_t = a + bt</code> 拟合斜率 <code>b</code>，得到 <code>Rslope = |b| × (n-1) / scale</code>。当 <code>Rslope <= 0.30</code> 时扣 0；当它从 0.30 升到 1 时，扣分从 0 连续增加到 25。</dd>
+              <dt>P<sub>cusum</sub></dt><dd>CUSUM 累积偏差扣分。计算 <code>c_t = sum(x_i - mean(x))</code>，再取 <code>Rcusum = (max(c_t)-min(c_t)) / (std(x) × n)</code>。当 <code>Rcusum <= 0.18</code> 时扣 0；当它从 0.18 升到 0.45 时，扣分从 0 连续增加到 20。</dd>
+              <dt>P<sub>var</sub></dt><dd>前后窗口方差变化扣分。计算 <code>Rvar = |std(tail)-std(head)| / std(x)</code>。当 <code>Rvar <= 0.60</code> 时扣 0；当它从 0.60 升到 1.50 时，扣分从 0 连续增加到 15。</dd>
+              <dt>P<sub>dir</sub></dt><dd>变化方向单一扣分。计算非零差分方向的平均绝对值 <code>Rdir = |mean(sign(d_t))|</code>。当 <code>Rdir <= 0.80</code> 时扣 0；当它从 0.80 升到 1 时，扣分从 0 连续增加到 10。</dd>
+            </dl>
+          </div>
+        </details>
+
+        <details>
+          <summary>6. 多变量相关性检测</summary>
           <p>目标是发现变量之间过强相关、完美线性关系或人为复制列。真实农业变量可能相关，但通常不会长期保持完全线性。</p>
           <ul>
             <li>Pearson 相关：检测线性关系，计算 <code>corr(X, Y)</code>。</li>
@@ -195,7 +219,6 @@
       <h2>后续可扩展指标</h2>
       <p>结合近年 IoT 数据质量、传感器异常检测和智慧农业研究，后续版本可以在保持可解释的前提下逐步加入以下指标。</p>
       <div class="method-list compact-list">
-        <div><b>传感器漂移</b><span>检测均值、方差或基线是否缓慢偏移。适合温湿度、土壤水分等长期传感器，常见方法包括滑动窗口统计、双线性回归和变化点检测。</span></div>
         <div><b>采样完整性</b><span>检查时间间隔是否稳定、是否存在连续缺测、是否有重复时间戳。适合原始采集链路质量评估。</span></div>
         <div><b>物理范围约束</b><span>按农业常识设置温度、湿度、降雨量、农药残留等合理范围，超出范围时不直接判假，只提示复核单位、量纲和设备状态。</span></div>
         <div><b>跨传感器一致性</b><span>同一地块、相邻设备或相似变量之间应有一定一致性，可检测单个设备故障或局部异常。</span></div>
@@ -206,9 +229,9 @@
 
     <section class="method-card">
       <h2>为什么第一版不直接加入复杂深度学习</h2>
-      <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、漂移检测或深度异常检测模型。</p>
+      <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、变化点模型或深度异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js?v=20260522c"></script>
+  <script src="assets/theme.js?v=20260523d"></script>
 </body>
 </html>

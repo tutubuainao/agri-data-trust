@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260522m">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523d">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -30,7 +30,7 @@
         <div class="hero-copy">
           <p class="eyebrow">FastAPI + Vue · 农业数据风险分析</p>
           <h1>农业原始数据可信度检测系统</h1>
-          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行五类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
+          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行六类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
           <div class="hero-actions">
             <label class="primary-action">
               <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
@@ -178,7 +178,7 @@
             <div class="section-head">
               <div>
                 <span class="section-title">指标详情</span>
-                <h2>五类检测子评分</h2>
+                <h2>六类检测子评分</h2>
               </div>
             </div>
             <div class="indicator-grid">
@@ -284,7 +284,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260522d"></script>
-  <script src="assets/app.js?v=20260522d"></script>
+  <script src="assets/theme.js?v=20260523d"></script>
+  <script src="assets/app.js?v=20260523d"></script>
 </body>
 </html>
