@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523d">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523r">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -47,7 +47,7 @@
       </div>
       <div class="formula-box">
         <span>总分公式</span>
-        <p class="formula">S = 0.18S<sub>平滑度</sub> + 0.18S<sub>时间序列</sub> + 0.16S<sub>数字规律</sub> + 0.16S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.18S<sub>相关性</sub></p>
+        <p class="formula">S = 0.18S<sub>平滑度</sub> + 0.16S<sub>时间序列</sub> + 0.13S<sub>数字规律</sub> + 0.06S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.06S<sub>变化点</sub> + 0.04S<sub>采样完整性</sub> + 0.04S<sub>物理规则</sub> + 0.19S<sub>相关性</sub></p>
       </div>
     </section>
 
@@ -56,7 +56,7 @@
       <div class="method-columns">
         <div>
           <h3>列类型处理</h3>
-          <p>时间列用于排序，不参与数值评分。数值可解析率不低于 70%、有效唯一值不少于 3 的非时间列进入六类检测。文本列、分类列、空列、常量列会在粗筛表说明跳过原因。</p>
+          <p>时间列用于排序，不参与数值列评分，但会进入采样完整性检测。数值可解析率不低于 70%、有效唯一值不少于 3 的非时间列进入数值类检测。文本列、分类列、空列、常量列会在粗筛表说明跳过原因。</p>
         </div>
         <div>
           <h3>缺失值处理</h3>
@@ -74,8 +74,8 @@
     </section>
 
     <section id="principles" class="method-card">
-      <h2>六类检测指标如何计算</h2>
-      <p>每个数值列都会分别执行单变量检测，多变量相关性在所有合格数值列之间计算。子评分会先按列汇总，再进入总分公式。</p>
+      <h2>九类检测指标如何计算</h2>
+      <p>每个合格数值列会执行数值类检测；采样完整性和物理规则按整个文件计算；多变量相关性在所有合格数值列之间计算。子评分会先汇总，再进入总分公式。</p>
       <div class="metric-accordion">
         <details open>
           <summary>1. 平滑度检测</summary>
@@ -193,7 +193,70 @@
         </details>
 
         <details>
-          <summary>6. 多变量相关性检测</summary>
+          <summary>6. 变化点检测</summary>
+          <p>目标是识别序列是否存在阶段性突变，例如设备校准、换传感器、采集环境切换或人工分段处理。它和传感器漂移不同：漂移关注缓慢偏移，变化点关注某个阶段前后的结构差异。</p>
+          <ul>
+            <li>滑动窗口均值差异：比较变化点前后两个窗口的均值差异。</li>
+            <li>CUSUM：观察中心化累积和是否出现明显偏移。</li>
+            <li>Page-Hinkley：用在线统计量捕捉均值突变信号。</li>
+          </ul>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>变点</sub> = max(0, 100 - P<sub>win</sub> - P<sub>cusum</sub> - P<sub>ph</sub>)</p>
+            <dl class="symbol-list">
+              <dt>P<sub>win</sub></dt><dd>滑动窗口均值差异扣分。计算 <code>Rwin = max(|mean(right)-mean(left)|) / scale</code>。当 <code>Rwin <= 0.25</code> 时扣 0；从 0.25 到 0.80 连续扣 0-35 分。</dd>
+              <dt>P<sub>cusum</sub></dt><dd>CUSUM 扣分。计算 <code>Rcusum = (max(c_t)-min(c_t)) / (std(x) × n)</code>。当 <code>Rcusum <= 0.18</code> 时扣 0；从 0.18 到 0.45 连续扣 0-25 分。</dd>
+              <dt>P<sub>ph</sub></dt><dd>Page-Hinkley 扣分。计算在线累积偏差统计量并按 <code>std(x) × sqrt(n)</code> 标准化；当标准化值从 2.5 升到 5.0 时，扣分从 0 连续增加到 25。</dd>
+            </dl>
+          </div>
+        </details>
+
+        <details>
+          <summary>7. 采样完整性检测</summary>
+          <p>目标是复核原始采集链路是否完整，重点关注时间间隔、重复时间戳、连续缺测和 Excel sheet 结构。没有时间列时不会直接判定高风险，但会提示无法复核采样完整性。</p>
+          <ul>
+            <li>时间间隔 CV：<code>CV = std(Δt) / mean(Δt)</code>，衡量采样频率是否稳定。</li>
+            <li>重复时间戳比例：统计重复时间点占比。</li>
+            <li>断点数量：若某段间隔超过中位间隔的 3 倍，记为采样断点。</li>
+            <li>最长连续缺测：按中位采样间隔估计 gap 中缺少的采样槽数量。</li>
+            <li>sheet 结构异常：多个 sheet 合并时，比较各 sheet 的有效字段集合差异。</li>
+          </ul>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>采样</sub> = max(0, 100 - P<sub>dup</sub> - P<sub>cv</sub> - P<sub>gap</sub> - P<sub>miss</sub> - P<sub>sheet</sub>)</p>
+            <dl class="symbol-list">
+              <dt>P<sub>dup</sub></dt><dd>重复时间戳扣分。重复比例从 1% 到 10% 连续扣 0-22 分。</dd>
+              <dt>P<sub>cv</sub></dt><dd>时间间隔波动扣分。时间间隔 CV 从 0.35 到 1.20 连续扣 0-22 分。</dd>
+              <dt>P<sub>gap</sub></dt><dd>采样断点扣分。每个明显断点扣 4 分，最多扣 18 分。</dd>
+              <dt>P<sub>miss</sub></dt><dd>最长连续缺测扣分。估计连续缺测槽从 2 到 12 个连续扣 0-14 分。</dd>
+              <dt>P<sub>sheet</sub></dt><dd>sheet 结构扣分。字段集合差异比例从 0.20 到 0.80 连续扣 0-14 分；空 sheet 会额外轻微扣分。</dd>
+            </dl>
+          </div>
+        </details>
+
+        <details>
+          <summary>8. 物理范围与单位异常检测</summary>
+          <p>目标是用农业常识做防呆复核。用户可选择“温室数据 / 虫害调查 / 产量调查 / 农残检测”等场景，系统按字段名称匹配规则。该指标只提示单位、量纲或录入风险，不替代法规限量或专家判定。</p>
+          <ul>
+            <li>温室数据：温度、湿度、土壤水分、光照、CO2、pH、EC。</li>
+            <li>虫害调查：卵量、幼虫、成虫、诱捕量、寄生率。</li>
+            <li>产量调查：产量、面积、株高、重量等非负农艺指标。</li>
+            <li>农残检测：农药残留、检出限、浓度、含量等非负指标。</li>
+          </ul>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>物理</sub> = max(0, 100 - P<sub>hard</sub> - P<sub>soft</sub> - P<sub>unit</sub> - P<sub>cover</sub>)</p>
+            <dl class="symbol-list">
+              <dt>P<sub>hard</sub></dt><dd>硬范围扣分。超出物理硬范围的比例从 0 到 15% 连续扣 0-28 分，例如湿度小于 0 或大于 100。</dd>
+              <dt>P<sub>soft</sub></dt><dd>经验范围扣分。超出常见经验范围的比例从 2% 到 30% 连续扣 0-16 分。</dd>
+              <dt>P<sub>unit</sub></dt><dd>疑似单位异常扣分。例如湿度字段全部落在 0-1，可能是比例而不是百分数，会轻微扣分并提示复核。</dd>
+              <dt>P<sub>cover</sub></dt><dd>规则覆盖扣分。若可匹配到物理规则的字段少于 25%，提示选择更合适场景或规范字段名。</dd>
+            </dl>
+          </div>
+        </details>
+
+        <details>
+          <summary>9. 多变量相关性检测</summary>
           <p>目标是发现变量之间过强相关、完美线性关系或人为复制列。真实农业变量可能相关，但通常不会长期保持完全线性。</p>
           <ul>
             <li>Pearson 相关：检测线性关系，计算 <code>corr(X, Y)</code>。</li>
@@ -217,13 +280,23 @@
 
     <section class="method-card">
       <h2>后续可扩展指标</h2>
-      <p>结合近年 IoT 数据质量、传感器异常检测和智慧农业研究，后续版本可以在保持可解释的前提下逐步加入以下指标。</p>
+      <p>结合近年 IoT 数据质量、传感器异常检测和智慧农业研究，后续版本可以在保持可解释的前提下继续扩展以下方向。</p>
       <div class="method-list compact-list">
-        <div><b>采样完整性</b><span>检查时间间隔是否稳定、是否存在连续缺测、是否有重复时间戳。适合原始采集链路质量评估。</span></div>
-        <div><b>物理范围约束</b><span>按农业常识设置温度、湿度、降雨量、农药残留等合理范围，超出范围时不直接判假，只提示复核单位、量纲和设备状态。</span></div>
         <div><b>跨传感器一致性</b><span>同一地块、相邻设备或相似变量之间应有一定一致性，可检测单个设备故障或局部异常。</span></div>
         <div><b>噪声与校准</b><span>检测短期高频噪声、量化台阶、长期偏置和校准前后突变，帮助区分真实波动和设备问题。</span></div>
         <div><b>审计与来源信息</b><span>如果上传文件包含设备编号、采集人、修改时间等元数据，可检测来源缺失、重复设备、异常批量修改等风险。</span></div>
+      </div>
+    </section>
+
+    <section class="method-card">
+      <h2>研究与工程参考</h2>
+      <p>当前版本优先采用可解释统计规则，并参考了近十年内常用的时间序列、漂移检测、异常检测和数据质量工程项目。以下链接用于说明方法来源和工程实现方向，不表示系统会直接照搬其中模型。</p>
+      <div class="method-list compact-list">
+        <div><b>PyOD</b><span>Python 异常检测工具箱，论文发表于 JMLR 2019，当前系统的 IsolationForest 思路与异常检测模块可参考其模型体系。<a href="https://www.jmlr.org/papers/v20/19-011.html" target="_blank">论文</a> / <a href="https://github.com/yzhao062/pyod" target="_blank">GitHub</a></span></div>
+        <div><b>River</b><span>面向流式数据的 Python 机器学习库，论文发表于 JMLR 2021，ADWIN、Page-Hinkley 等漂移检测思想适合后续在线采集场景。<a href="https://www.jmlr.org/papers/v22/20-1380.html" target="_blank">论文</a> / <a href="https://github.com/online-ml/river" target="_blank">GitHub</a></span></div>
+        <div><b>STUMPY</b><span>Matrix Profile 时间序列挖掘库，论文发表于 JOSS 2019，后续可用于发现局部异常片段和重复模式。<a href="https://joss.theoj.org/papers/10.21105/joss.01504" target="_blank">论文</a> / <a href="https://github.com/stumpy-dev/stumpy" target="_blank">GitHub</a></span></div>
+        <div><b>Great Expectations</b><span>数据质量规则与校验工程项目，适合后续把不同农业场景规则做成可维护的规则库。<a href="https://github.com/great-expectations/great_expectations" target="_blank">GitHub</a></span></div>
+        <div><b>IoT-DQA</b><span>IoT time-series 数据质量评估项目，可作为“完整性、有效性、一致性”等质量维度设计参考。<a href="https://jeafreezy.github.io/iot-dqa/" target="_blank">项目页面</a></span></div>
       </div>
     </section>
 
@@ -232,6 +305,6 @@
       <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、变化点模型或深度异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js?v=20260523d"></script>
+  <script src="assets/theme.js?v=20260523r"></script>
 </body>
 </html>

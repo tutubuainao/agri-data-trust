@@ -51,7 +51,7 @@ def _screening_table(records: list[ColumnScreening] | None) -> str:
     )
     return f"""
     <h2>文件粗筛</h2>
-    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入六类可信度检测。</p>
+    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入九类可信度检测中的数值类指标。</p>
     <table>
       <thead>
         <tr>
@@ -78,6 +78,7 @@ def generate_html_report(
     source_name: str,
     reports_dir: Path,
     screening_records: list[ColumnScreening] | None = None,
+    scenario: dict | None = None,
 ) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -86,6 +87,7 @@ def generate_html_report(
     numeric_columns = ", ".join(profile.numeric_columns) if profile.numeric_columns else "未识别"
     reasons = "\n".join(f"<li>{escape(reason)}</li>" for reason in analysis["reasons"])
     score_table = sub_scores_dataframe(analysis["sub_scores"]).to_html(index=False, escape=True)
+    scenario_label = escape((scenario or {}).get("label", "自动识别"))
 
     column_sections: list[str] = []
     for col, checks in analysis["column_results"].items():
@@ -122,6 +124,20 @@ def generate_html_report(
     correlation_charts = "\n".join(
         _chart_img(chart, "相关性热力图") for chart in analysis["correlation"].get("charts", [])
     )
+    dataset_sections: list[str] = []
+    for result in analysis.get("dataset_results", {}).values():
+        result_reasons = "\n".join(f"<li>{escape(reason)}</li>" for reason in result.get("reasons", []))
+        charts = "\n".join(_chart_img(chart, result["label"]) for chart in result.get("charts", []))
+        dataset_sections.append(
+            f"""
+            <section class="check">
+              <h3>{escape(result["label"])}：{result["score"]:.1f}</h3>
+              <ul>{result_reasons}</ul>
+              {_metrics_table(result.get("metrics", {}))}
+              <div class="charts">{charts}</div>
+            </section>
+            """
+        )
 
     html = f"""<!doctype html>
 <html lang="zh-CN">
@@ -164,6 +180,7 @@ def generate_html_report(
       <tr><th>时间列</th><td>{escape(profile.time_column or "未识别")}</td></tr>
       <tr><th>数值列</th><td>{escape(numeric_columns)}</td></tr>
       <tr><th>缺失率</th><td>{profile.missing_rate:.2%}</td></tr>
+      <tr><th>规则场景</th><td>{scenario_label}</td></tr>
     </tbody>
   </table>
 
@@ -177,6 +194,9 @@ def generate_html_report(
 
   <h2>分列检测详情</h2>
   {''.join(column_sections)}
+
+  <h2>数据集级检测详情</h2>
+  {''.join(dataset_sections)}
 
   <h2>多变量相关性</h2>
   <p>评分：<strong>{analysis["correlation"]["score"]:.1f}</strong></p>

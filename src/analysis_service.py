@@ -14,6 +14,7 @@ import pandas as pd
 from .loader import load_data
 from .profiler import profile_data
 from .report import generate_html_report
+from .rule_config import scenario_info
 from .scoring import run_full_analysis, risk_level
 from .screening import ColumnScreening, screen_columns
 
@@ -203,6 +204,16 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
     correlation = analysis["correlation"]
     pearson = correlation.get("pearson")
     spearman = correlation.get("spearman")
+    dataset_results: dict[str, dict[str, Any]] = {}
+    for key, result in analysis.get("dataset_results", {}).items():
+        dataset_results[key] = {
+            "label": result.get("label", key),
+            "score": round(float(result.get("score", 0)), 2),
+            "risk": result.get("risk"),
+            "reasons": result.get("reasons", []),
+            "metrics": _json_safe(result.get("metrics", {})),
+            "charts": _chart_urls(result.get("charts", []), base_path),
+        }
 
     return {
         "total_score": round(float(analysis["total_score"]), 2),
@@ -215,6 +226,7 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
             for key, value in analysis["sub_scores"].items()
         },
         "reasons": analysis["reasons"],
+        "dataset_results": dataset_results,
         "column_results": column_results,
         "correlation": {
             "label": correlation.get("label", "多变量相关性检测"),
@@ -235,10 +247,12 @@ def analyze_dataframe(
     reports_dir: Path,
     base_path: str = "/agri-trust",
     record_stats: bool = False,
+    scenario: str | None = "auto",
 ) -> dict[str, Any]:
     prepared, profile = profile_data(df)
     screening_records = screen_columns(df, profile)
     profile_payload = _profile_payload(profile)
+    scenario_payload = scenario_info(scenario)
 
     if not profile.numeric_columns:
         if record_stats:
@@ -248,18 +262,20 @@ def analyze_dataframe(
             "message": "未识别到可分析的数值列。请检查文件是否包含至少一个可解析率 >= 70%、有效唯一值数 >= 3 的数值列。",
             "source_name": source_name,
             "profile": profile_payload,
+            "scenario": scenario_payload,
             "screening": _screening_payload(screening_records),
             "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
             "stats": load_usage_stats(reports_dir),
         }
 
-    analysis = run_full_analysis(prepared, profile.numeric_columns, reports_dir)
+    analysis = run_full_analysis(prepared, profile, reports_dir, scenario_payload["key"])
     html_path = generate_html_report(
         analysis,
         profile,
         source_name,
         reports_dir,
         screening_records=screening_records,
+        scenario=scenario_payload,
     )
     stats = record_usage(reports_dir, source_name, profile_payload) if record_stats else load_usage_stats(reports_dir)
 
@@ -267,6 +283,7 @@ def analyze_dataframe(
         "ok": True,
         "source_name": source_name,
         "profile": profile_payload,
+        "scenario": scenario_payload,
         "screening": _screening_payload(screening_records),
         "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
         "analysis": _analysis_payload(analysis, base_path),
@@ -281,6 +298,7 @@ def analyze_file_bytes(
     reports_dir: Path,
     base_path: str = "/agri-trust",
     record_stats: bool = False,
+    scenario: str | None = "auto",
 ) -> dict[str, Any]:
     df = load_data(BytesIO(content), filename)
-    return analyze_dataframe(df, filename, reports_dir, base_path, record_stats=record_stats)
+    return analyze_dataframe(df, filename, reports_dir, base_path, record_stats=record_stats, scenario=scenario)

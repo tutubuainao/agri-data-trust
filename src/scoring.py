@@ -4,10 +4,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from .changepoint import analyze_changepoints
 from .correlation import analyze_correlations
 from .digit_analysis import analyze_digit_patterns
 from .drift import analyze_sensor_drift
 from .outlier import analyze_outliers
+from .physical_rules import analyze_physical_rules
+from .profiler import DataProfile
+from .sampling_integrity import analyze_sampling_integrity
 from .smoothness import analyze_smoothness
 from .timeseries import analyze_timeseries_nature
 
@@ -18,15 +22,19 @@ COLUMN_INDICATORS = {
     "digit": ("小数位/数字规律检测", analyze_digit_patterns),
     "outlier": ("异常点分布检测", analyze_outliers),
     "drift": ("传感器漂移检测", analyze_sensor_drift),
+    "changepoint": ("变化点检测", analyze_changepoints),
 }
 
 INDICATOR_WEIGHTS = {
     "smoothness": 0.18,
-    "timeseries": 0.18,
-    "digit": 0.16,
-    "outlier": 0.16,
+    "timeseries": 0.16,
+    "digit": 0.13,
+    "outlier": 0.06,
     "drift": 0.14,
-    "correlation": 0.18,
+    "changepoint": 0.06,
+    "sampling": 0.04,
+    "physical": 0.04,
+    "correlation": 0.19,
 }
 
 
@@ -38,7 +46,13 @@ def risk_level(score: float) -> str:
     return "高风险"
 
 
-def run_full_analysis(df: pd.DataFrame, numeric_columns: list[str], reports_dir: Path) -> dict:
+def run_full_analysis(
+    df: pd.DataFrame,
+    profile: DataProfile,
+    reports_dir: Path,
+    scenario: str | None = "auto",
+) -> dict:
+    numeric_columns = profile.numeric_columns
     column_results: dict[str, dict] = {}
     indicator_scores: dict[str, list[float]] = {key: [] for key in COLUMN_INDICATORS}
 
@@ -52,27 +66,46 @@ def run_full_analysis(df: pd.DataFrame, numeric_columns: list[str], reports_dir:
 
     correlation_result = analyze_correlations(df, numeric_columns, reports_dir)
     correlation_result["label"] = "多变量相关性检测"
+    sampling_result = analyze_sampling_integrity(df, profile)
+    sampling_result["label"] = "采样完整性检测"
+    physical_result = analyze_physical_rules(df, numeric_columns, scenario)
+    physical_result["label"] = "物理范围与单位检测"
 
-    sub_scores = {
+    column_sub_scores = {
         key: round(sum(scores) / len(scores), 2) if scores else 50.0
         for key, scores in indicator_scores.items()
     }
-    sub_scores["correlation"] = round(float(correlation_result["score"]), 2)
+    sub_scores = {
+        **column_sub_scores,
+        "sampling": round(float(sampling_result["score"]), 2),
+        "physical": round(float(physical_result["score"]), 2),
+        "correlation": round(float(correlation_result["score"]), 2),
+    }
 
     total_score = round(sum(sub_scores[key] * INDICATOR_WEIGHTS[key] for key in INDICATOR_WEIGHTS), 2)
-    reasons = collect_top_reasons(column_results, correlation_result)
+    dataset_results = {
+        "sampling": sampling_result,
+        "physical": physical_result,
+    }
+    reasons = collect_top_reasons(column_results, correlation_result, dataset_results)
 
     return {
         "total_score": total_score,
         "risk_level": risk_level(total_score),
         "sub_scores": sub_scores,
         "column_results": column_results,
+        "dataset_results": dataset_results,
         "correlation": correlation_result,
         "reasons": reasons,
     }
 
 
-def collect_top_reasons(column_results: dict[str, dict], correlation_result: dict, limit: int = 10) -> list[str]:
+def collect_top_reasons(
+    column_results: dict[str, dict],
+    correlation_result: dict,
+    dataset_results: dict[str, dict] | None = None,
+    limit: int = 12,
+) -> list[str]:
     ranked: list[tuple[float, str]] = []
     for col, checks in column_results.items():
         for result in checks.values():
@@ -84,6 +117,13 @@ def collect_top_reasons(column_results: dict[str, dict], correlation_result: dic
     for reason in correlation_result.get("reasons", []):
         if "未发现" not in reason:
             ranked.append((float(correlation_result.get("score", 100)), reason))
+
+    for result in (dataset_results or {}).values():
+        score = float(result.get("score", 100))
+        label = result.get("label", "数据集检测")
+        for reason in result.get("reasons", []):
+            if "未发现" not in reason and "未识别" not in reason:
+                ranked.append((score, f"{label}: {reason}"))
 
     ranked.sort(key=lambda item: item[0])
     if not ranked:
@@ -98,6 +138,9 @@ def sub_scores_dataframe(sub_scores: dict[str, float]) -> pd.DataFrame:
         "digit": "小数位/数字规律检测",
         "outlier": "异常点分布检测",
         "drift": "传感器漂移检测",
+        "changepoint": "变化点检测",
+        "sampling": "采样完整性检测",
+        "physical": "物理范围与单位检测",
         "correlation": "多变量相关性检测",
     }
     return pd.DataFrame(

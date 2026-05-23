@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
   <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523d">
+  <link rel="stylesheet" href="assets/styles.css?v=20260523r">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
@@ -30,7 +30,14 @@
         <div class="hero-copy">
           <p class="eyebrow">FastAPI + Vue · 农业数据风险分析</p>
           <h1>农业原始数据可信度检测系统</h1>
-          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行六类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
+          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行九类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
+          <div class="scenario-picker">
+            <label for="scenario">规则场景</label>
+            <select id="scenario" v-model="scenario">
+              <option v-for="item in scenarioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+            <span>{{ selectedScenarioDescription }}</span>
+          </div>
           <div class="hero-actions">
             <label class="primary-action">
               <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
@@ -105,6 +112,10 @@
           <span>整体缺失率</span>
           <strong>{{ pct(result.profile.missing_rate) }}</strong>
         </article>
+        <article class="metric-card">
+          <span>规则场景</span>
+          <strong>{{ result.scenario?.label || selectedScenarioLabel }}</strong>
+        </article>
       </section>
 
       <section v-if="result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length" class="glass-section sheet-note">
@@ -178,7 +189,7 @@
             <div class="section-head">
               <div>
                 <span class="section-title">指标详情</span>
-                <h2>六类检测子评分</h2>
+                <h2>九类检测子评分</h2>
               </div>
             </div>
             <div class="indicator-grid">
@@ -186,6 +197,28 @@
                 <span>{{ item.label }}</span>
                 <strong>{{ item.score }}</strong>
                 <small>{{ item.risk }}</small>
+              </article>
+            </div>
+          </section>
+
+          <section v-if="datasetCheckItems.length" class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">数据集级检测</span>
+                <h2>采样完整性与物理规则</h2>
+                <p class="section-desc">这些指标基于整个文件计算，主要复核时间戳、sheet 结构、常见农业物理范围和单位风险。</p>
+              </div>
+            </div>
+            <div class="column-grid">
+              <article v-for="item in datasetCheckItems" :key="item.key" class="column-card">
+                <h3>{{ item.label }}</h3>
+                <div class="check-row">
+                  <div>
+                    <b>检测结论</b>
+                    <p>{{ item.reasons.join('；') }}</p>
+                  </div>
+                  <strong>{{ item.score }}</strong>
+                </div>
               </article>
             </div>
           </section>
@@ -284,7 +317,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260523d"></script>
-  <script src="assets/app.js?v=20260523d"></script>
+  <script src="assets/theme.js?v=20260523r"></script>
+  <script src="assets/app.js?v=20260523r"></script>
 </body>
 </html>

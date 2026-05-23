@@ -80,7 +80,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -223,6 +224,39 @@ main {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 24px;
+}
+
+.scenario-picker {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 230px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-top: 22px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-card);
+}
+
+.scenario-picker label {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.scenario-picker select {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--ghost-bg);
+  padding: 0 10px;
+  font-weight: 800;
+}
+
+.scenario-picker span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .primary-action,
@@ -1015,6 +1049,10 @@ th {
     display: grid;
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .scenario-picker {
+    grid-template-columns: 1fr;
   }
 
   .primary-action,

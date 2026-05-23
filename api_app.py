@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -61,19 +61,19 @@ def usage_stats() -> dict:
 
 @app.post("/api/analyze")
 @app.post(f"{BASE_PATH}/api/analyze")
-async def analyze_upload(file: UploadFile = File(...)) -> dict:
+async def analyze_upload(file: UploadFile = File(...), scenario: str = Form("auto")) -> dict:
     if not file.filename:
         raise HTTPException(status_code=400, detail="请上传 CSV、XLSX 或 XLS 文件。")
     try:
         content = await file.read()
-        return analyze_file_bytes(content, file.filename, REPORTS_DIR, BASE_PATH, record_stats=True)
+        return analyze_file_bytes(content, file.filename, REPORTS_DIR, BASE_PATH, record_stats=True, scenario=scenario)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"分析失败：{exc}") from exc
 
 
 @app.get("/api/sample/{kind}")
 @app.get(f"{BASE_PATH}/api/sample/{{kind}}")
-def analyze_sample(kind: str) -> dict:
+def analyze_sample(kind: str, scenario: str = Query("auto")) -> dict:
     sample_map = {
         "real": "sample_real.csv",
         "fake": "sample_fake.csv",
@@ -82,4 +82,4 @@ def analyze_sample(kind: str) -> dict:
         raise HTTPException(status_code=404, detail="未知示例数据。")
     filename = sample_map[kind]
     df = load_data(DATA_DIR / filename)
-    return analyze_dataframe(df, filename, REPORTS_DIR, BASE_PATH)
+    return analyze_dataframe(df, filename, REPORTS_DIR, BASE_PATH, scenario=scenario)

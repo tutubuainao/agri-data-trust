@@ -6,6 +6,9 @@ const labels = {
   digit: ["小数位/数字规律", "数字"],
   outlier: ["异常点分布", "异常"],
   drift: ["传感器漂移", "漂移"],
+  changepoint: ["变化点检测", "变点"],
+  sampling: ["采样完整性", "采样"],
+  physical: ["物理范围/单位", "物理"],
   correlation: ["多变量相关性", "相关"],
 };
 
@@ -38,6 +41,11 @@ const chartHelp = [
     description: "观察数值基线是否随样本顺序持续偏移，用来提示设备校准变化、长期基线迁移或真实农情趋势。",
   },
   {
+    token: "changepoint",
+    title: "变化点扫描",
+    description: "标记疑似阶段性突变位置，用来复核设备校准、采样条件变化或人工分段处理痕迹。",
+  },
+  {
     token: "correlation",
     title: "相关性热力图",
     description: "展示合格数值列两两之间的 Pearson 相关系数，用来识别过强相关、近似复制列或完美线性关系。",
@@ -59,6 +67,14 @@ createApp({
       progressText: "",
       progressTimer: null,
       alertMessage: "",
+      scenario: "auto",
+      scenarioOptions: [
+        { value: "auto", label: "自动识别", description: "按字段名称匹配通用农业规则" },
+        { value: "greenhouse", label: "温室数据", description: "温度、湿度、土壤水分、光照等传感器" },
+        { value: "pest", label: "虫害调查", description: "卵量、幼虫、成虫、诱捕量、寄生率" },
+        { value: "yield", label: "产量调查", description: "产量、面积、株高、重量等农艺调查" },
+        { value: "residue", label: "农残检测", description: "农药残留、检出限、浓度或含量" },
+      ],
     };
   },
   computed: {
@@ -104,6 +120,9 @@ createApp({
       Object.values(this.result.analysis.column_results || {}).forEach((checks) => {
         Object.values(checks).forEach((check) => charts.push(...(check.charts || [])));
       });
+      Object.values(this.result.analysis.dataset_results || {}).forEach((check) => {
+        charts.push(...(check.charts || []));
+      });
       charts.push(...(this.result.analysis.correlation?.charts || []));
       return charts.slice(0, 12);
     },
@@ -131,6 +150,21 @@ createApp({
       if (skipped.length) parts.push(`空 sheet 已跳过：${skipped.join("、")}。`);
       return parts.join("");
     },
+    selectedScenarioLabel() {
+      return this.scenarioOptions.find((item) => item.value === this.scenario)?.label || "自动识别";
+    },
+    selectedScenarioDescription() {
+      return this.scenarioOptions.find((item) => item.value === this.scenario)?.description || "";
+    },
+    datasetCheckItems() {
+      return Object.entries(this.result?.analysis?.dataset_results || {}).map(([key, item]) => ({
+        key,
+        label: item.label,
+        score: Math.round(item.score ?? 0),
+        reasons: item.reasons || [],
+        metrics: item.metrics || {},
+      }));
+    },
     previewRows() {
       return this.result?.preview || [];
     },
@@ -151,6 +185,7 @@ createApp({
       if (!file) return;
       const form = new FormData();
       form.append("file", file);
+      form.append("scenario", this.scenario);
       this.startProgress("正在上传文件...");
       await this.request(`${basePath()}/api/analyze`, {
         method: "POST",
@@ -160,7 +195,7 @@ createApp({
     },
     async loadSample(kind) {
       this.startProgress("正在加载示例数据...");
-      await this.request(`${basePath()}/api/sample/${kind}`);
+      await this.request(`${basePath()}/api/sample/${kind}?scenario=${encodeURIComponent(this.scenario)}`);
     },
     startProgress(text) {
       this.stopProgress();
@@ -173,7 +208,7 @@ createApp({
           this.progressText = "正在识别 sheet 和字段...";
         } else if (this.progress < 68) {
           this.progress += 5;
-          this.progressText = "正在执行六类可信度检测...";
+          this.progressText = "正在执行九类可信度检测...";
         } else if (this.progress < 92) {
           this.progress += 2;
           this.progressText = "正在生成图表和报告...";
