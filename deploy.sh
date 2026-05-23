@@ -32,6 +32,7 @@ COPYFILE_DISABLE=1 tar \
   --exclude=".cache" \
   --exclude="__pycache__" \
   --exclude="*.pyc" \
+  --exclude="ssh.md" \
   -czf "$ARCHIVE" \
   -C "$(dirname "$PROJECT_ROOT")" \
   "$(basename "$PROJECT_ROOT")"

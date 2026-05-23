@@ -30,3 +30,4 @@ reports/*
 *.key
 id_rsa*
 agri_data_trust_deploy*
+ssh.md
