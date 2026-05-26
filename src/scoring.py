@@ -8,6 +8,13 @@ from .changepoint import analyze_changepoints
 from .correlation import analyze_correlations
 from .digit_analysis import analyze_digit_patterns
 from .drift import analyze_sensor_drift
+from .indicator_config import (
+    ALL_INDICATORS,
+    available_indicator_payload,
+    resolve_indicator_selection,
+    weights_for_selection,
+)
+from .ml_detection import analyze_ml_anomaly
 from .outlier import analyze_outliers
 from .physical_rules import analyze_physical_rules
 from .profiler import DataProfile
@@ -25,69 +32,11 @@ COLUMN_INDICATORS = {
     "changepoint": ("变化点检测", analyze_changepoints),
 }
 
-DEFAULT_INDICATOR_WEIGHTS = {
-    "smoothness": 0.18,
-    "timeseries": 0.16,
-    "digit": 0.13,
-    "outlier": 0.06,
-    "drift": 0.14,
-    "changepoint": 0.06,
-    "sampling": 0.04,
-    "physical": 0.04,
-    "correlation": 0.19,
-}
-
-SCENARIO_INDICATOR_WEIGHTS = {
-    "auto": DEFAULT_INDICATOR_WEIGHTS,
-    "greenhouse": {
-        "smoothness": 0.16,
-        "timeseries": 0.18,
-        "digit": 0.08,
-        "outlier": 0.08,
-        "drift": 0.16,
-        "changepoint": 0.10,
-        "sampling": 0.08,
-        "physical": 0.06,
-        "correlation": 0.10,
-    },
-    "pest": {
-        "smoothness": 0.10,
-        "timeseries": 0.08,
-        "digit": 0.14,
-        "outlier": 0.12,
-        "drift": 0.08,
-        "changepoint": 0.14,
-        "sampling": 0.08,
-        "physical": 0.14,
-        "correlation": 0.12,
-    },
-    "yield": {
-        "smoothness": 0.10,
-        "timeseries": 0.08,
-        "digit": 0.12,
-        "outlier": 0.12,
-        "drift": 0.08,
-        "changepoint": 0.10,
-        "sampling": 0.10,
-        "physical": 0.14,
-        "correlation": 0.16,
-    },
-    "residue": {
-        "smoothness": 0.08,
-        "timeseries": 0.06,
-        "digit": 0.16,
-        "outlier": 0.12,
-        "drift": 0.06,
-        "changepoint": 0.10,
-        "sampling": 0.08,
-        "physical": 0.20,
-        "correlation": 0.14,
-    },
-}
-
-
-def indicator_weights_for_scenario(scenario: str | None) -> dict[str, float]:
-    return dict(SCENARIO_INDICATOR_WEIGHTS.get(scenario or "auto", DEFAULT_INDICATOR_WEIGHTS))
+def indicator_weights_for_scenario(
+    scenario: str | None,
+    indicators: list[str] | None = None,
+) -> dict[str, float]:
+    return weights_for_selection(scenario, indicators)
 
 
 def risk_level(score: float) -> str:
@@ -103,42 +52,78 @@ def run_full_analysis(
     profile: DataProfile,
     reports_dir: Path,
     scenario: str | None = "auto",
+    indicators: list[str] | str | None = None,
+    custom_indicators: bool = False,
 ) -> dict:
     numeric_columns = profile.numeric_columns
+    selection = resolve_indicator_selection(scenario, indicators, custom_indicators)
+    selected_indicators: list[str] = selection["selected"]
+    selected_column_indicators = [
+        key for key in selected_indicators if key in COLUMN_INDICATORS
+    ]
     column_results: dict[str, dict] = {}
-    indicator_scores: dict[str, list[float]] = {key: [] for key in COLUMN_INDICATORS}
+    indicator_scores: dict[str, list[float]] = {key: [] for key in selected_column_indicators}
 
     for col in numeric_columns:
         column_results[col] = {}
-        for key, (label, analyzer) in COLUMN_INDICATORS.items():
+        for key in selected_column_indicators:
+            label, analyzer = COLUMN_INDICATORS[key]
             result = analyzer(df[col], reports_dir)
             result["label"] = label
             column_results[col][key] = result
             indicator_scores[key].append(float(result["score"]))
 
-    correlation_result = analyze_correlations(df, numeric_columns, reports_dir)
-    correlation_result["label"] = "多变量相关性检测"
-    sampling_result = analyze_sampling_integrity(df, profile)
-    sampling_result["label"] = "采样完整性检测"
-    physical_result = analyze_physical_rules(df, numeric_columns, scenario)
-    physical_result["label"] = "物理范围与单位检测"
-
     column_sub_scores = {
         key: round(sum(scores) / len(scores), 2) if scores else 50.0
         for key, scores in indicator_scores.items()
     }
-    sub_scores = {
-        **column_sub_scores,
-        "sampling": round(float(sampling_result["score"]), 2),
-        "physical": round(float(physical_result["score"]), 2),
-        "correlation": round(float(correlation_result["score"]), 2),
-    }
+    sub_scores = dict(column_sub_scores)
+    dataset_results: dict[str, dict] = {}
 
-    weights = indicator_weights_for_scenario(scenario)
-    total_score = round(sum(sub_scores[key] * weights[key] for key in weights), 2)
-    dataset_results = {
-        "sampling": sampling_result,
-        "physical": physical_result,
+    if "sampling" in selected_indicators:
+        sampling_result = analyze_sampling_integrity(df, profile)
+        sampling_result["label"] = "采样完整性检测"
+        dataset_results["sampling"] = sampling_result
+        sub_scores["sampling"] = round(float(sampling_result["score"]), 2)
+
+    if "physical" in selected_indicators:
+        physical_result = analyze_physical_rules(df, numeric_columns, scenario)
+        physical_result["label"] = "物理范围与单位检测"
+        dataset_results["physical"] = physical_result
+        sub_scores["physical"] = round(float(physical_result["score"]), 2)
+
+    if "ml_anomaly" in selected_indicators:
+        ml_result = analyze_ml_anomaly(df, numeric_columns, reports_dir)
+        ml_result["label"] = "机器学习异常识别"
+        dataset_results["ml_anomaly"] = ml_result
+        sub_scores["ml_anomaly"] = round(float(ml_result["score"]), 2)
+
+    if "correlation" in selected_indicators:
+        correlation_result = analyze_correlations(df, numeric_columns, reports_dir)
+        correlation_result["label"] = "多变量相关性检测"
+        sub_scores["correlation"] = round(float(correlation_result["score"]), 2)
+    else:
+        correlation_result = {
+            "label": "多变量相关性检测",
+            "score": None,
+            "risk": "skipped",
+            "reasons": ["当前未选择多变量相关性检测。"],
+            "metrics": {},
+            "charts": [],
+            "skipped": True,
+        }
+
+    weights = weights_for_selection(scenario, selected_indicators)
+    total_score = round(
+        sum(sub_scores[key] * weights[key] for key in weights if key in sub_scores),
+        2,
+    )
+    selected_payload = {
+        "mode": selection["mode"],
+        "selected": selected_indicators,
+        "available": available_indicator_payload(),
+        "default_core": selection["default_core"],
+        "optional": selection["optional"],
     }
     reasons = collect_top_reasons(column_results, correlation_result, dataset_results)
 
@@ -147,6 +132,10 @@ def run_full_analysis(
         "risk_level": risk_level(total_score),
         "weights": weights,
         "sub_scores": sub_scores,
+        "indicator_selection": selected_payload,
+        "selected_indicators": selected_indicators,
+        "available_indicators": selected_payload["available"],
+        "indicator_selection_mode": selection["mode"],
         "column_results": column_results,
         "dataset_results": dataset_results,
         "correlation": correlation_result,
@@ -168,8 +157,8 @@ def collect_top_reasons(
                 if "未发现" not in reason and "处于可解释范围" not in reason:
                     ranked.append((score, f"{col}: {reason}"))
 
-    for reason in correlation_result.get("reasons", []):
-        if "未发现" not in reason:
+    for reason in (correlation_result or {}).get("reasons", []):
+        if "未发现" not in reason and "未选择" not in reason:
             ranked.append((float(correlation_result.get("score", 100)), reason))
 
     for result in (dataset_results or {}).values():
@@ -196,6 +185,7 @@ def sub_scores_dataframe(sub_scores: dict[str, float], weights: dict[str, float]
         "sampling": "采样完整性检测",
         "physical": "物理范围与单位检测",
         "correlation": "多变量相关性检测",
+        "ml_anomaly": "机器学习异常识别",
     }
     rows = []
     for key, value in sub_scores.items():

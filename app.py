@@ -25,7 +25,7 @@ st.markdown(
     """
     <section class="trust-hero">
       <h1>农业原始数据可信度检测系统 MVP</h1>
-      <p>上传 CSV 或 Excel 后，系统会先做文件粗筛，再对可分析的数值列执行五类可信度检测，输出评分、风险等级、解释和 HTML 报告。本系统只提示可疑风险，不判定数据一定为假。</p>
+      <p>上传 CSV 或 Excel 后，系统会先做文件粗筛，再对可分析的数值列执行可信度检测，输出评分、风险等级、解释和 HTML 报告。本系统只提示可疑风险，不判定数据一定为假。</p>
       <div class="trust-actions">
         <a class="trust-link" href="methodology" target="_self">查看评分标准与实现原理</a>
       </div>
@@ -89,13 +89,13 @@ st.markdown(
 
 with st.expander("自动识别结果", expanded=True):
     st.write(f"时间列：`{profile.time_column or '未识别'}`")
-    st.write(f"进入五类检测的数值列：`{', '.join(profile.numeric_columns) if profile.numeric_columns else '未识别'}`")
+    st.write(f"进入可信度检测的数值列：`{', '.join(profile.numeric_columns) if profile.numeric_columns else '未识别'}`")
     if profile.time_column is None:
         st.caption("未识别到时间列时，系统会按数据原始行顺序执行时间序列类检测。")
 
 st.markdown('<div class="trust-section-title">文件粗筛</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="trust-note">文件粗筛会先判断每一列是时间列、数值检测列、文本/分类列、日期辅助列还是常量/变化不足列。只有“数值可解析率 >= 70% 且有效唯一值数 >= 3”的非时间列会进入五类可信度检测。</div>',
+    '<div class="trust-note">文件粗筛会先判断每一列是时间列、数值检测列、文本/分类列、日期辅助列还是常量/变化不足列。只有“数值可解析率 >= 70% 且有效唯一值数 >= 3”的非时间列会进入可信度检测。</div>',
     unsafe_allow_html=True,
 )
 st.dataframe(screening_df, use_container_width=True, hide_index=True)
@@ -107,8 +107,8 @@ if not profile.numeric_columns:
     st.warning("未识别到可分析的数值列，请检查数据格式。")
     st.stop()
 
-with st.spinner("正在执行五类可信度检测..."):
-    analysis = run_full_analysis(prepared, profile.numeric_columns, REPORTS_DIR)
+with st.spinner("正在执行可信度检测..."):
+    analysis = run_full_analysis(prepared, profile, REPORTS_DIR)
     html_path = generate_html_report(
         analysis,
         profile,
@@ -154,11 +154,14 @@ with detail_tab:
 
 with correlation_tab:
     st.subheader("多变量相关性")
-    st.write(f"评分：**{analysis['correlation']['score']:.1f}**")
-    for reason in analysis["correlation"].get("reasons", []):
-        st.write(f"- {reason}")
-    for chart in analysis["correlation"].get("charts", []):
-        st.image(chart)
+    if analysis["correlation"].get("skipped"):
+        st.info("默认核心指标未启用多变量相关性检测。请在新版网页端选择自定义指标后开启。")
+    else:
+        st.write(f"评分：**{analysis['correlation']['score']:.1f}**")
+        for reason in analysis["correlation"].get("reasons", []):
+            st.write(f"- {reason}")
+        for chart in analysis["correlation"].get("charts", []):
+            st.image(chart)
 
 with report_tab:
     st.subheader("检测报告")

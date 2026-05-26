@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>评分标准与实现原理</title>
-  <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523u">
+  <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "light";</script>
+  <link rel="stylesheet" href="assets/styles.css?v=20260525f">
 </head>
 <body class="method-page">
   <header class="shell-header">
@@ -29,7 +29,7 @@
     <section class="method-hero">
       <p class="eyebrow">评分规则说明</p>
       <h1>评分标准与实现原理</h1>
-      <p>本系统输出可信度评分和可疑风险，不做“数据一定为假”的判断。第一版采用规则型统计检测，优先保证可运行、可解释、可复核。</p>
+      <p>本系统输出可信度评分和可疑风险，不做“数据一定为假”的判断。当前版本采用“默认核心指标 + 可选增强指标”的结构，优先保证可运行、可解释、可复核。</p>
     </section>
 
     <section id="scoring" class="method-card">
@@ -48,22 +48,63 @@
       <div class="formula-box">
         <span>总分公式</span>
         <p class="formula">S = Σ(W<sub>i</sub> × S<sub>i</sub>)</p>
-        <p>其中 <code>S_i</code> 是第 i 个指标的子评分，<code>W_i</code> 是当前规则场景下的指标权重。所有权重之和为 100%。</p>
-        <p class="formula">自动识别默认：S = 0.18S<sub>平滑度</sub> + 0.16S<sub>时间序列</sub> + 0.13S<sub>数字规律</sub> + 0.06S<sub>异常点</sub> + 0.14S<sub>传感器漂移</sub> + 0.06S<sub>变化点</sub> + 0.04S<sub>采样完整性</sub> + 0.04S<sub>物理规则</sub> + 0.19S<sub>相关性</sub></p>
+        <p>其中 <code>S_i</code> 是本次启用的第 i 个指标子评分，<code>W_i</code> 是该指标在当前场景下的归一化权重。只对用户实际选择的指标求和，所有启用指标权重之和为 100%。</p>
+        <p class="formula">默认核心：S = W<sub>采样</sub>S<sub>采样</sub> + W<sub>平滑</sub>S<sub>平滑</sub> + W<sub>数字</sub>S<sub>数字</sub> + W<sub>异常</sub>S<sub>异常</sub> + W<sub>物理</sub>S<sub>物理</sub></p>
       </div>
-      <h3>规则场景如何影响评分</h3>
-      <p>规则场景影响两件事：第一，物理范围与单位异常检测会按场景匹配不同字段规则；第二，总分汇总时会使用不同指标权重。各指标子评分的计算公式不随场景改变，这样用户仍能看到每个指标本身的原始风险。</p>
+      <h3>可选指标加入后，权重如何分配</h3>
+      <p>系统不是给每个指标写死一个固定百分比，而是先按规则场景给每个指标一个“相对权重系数” <code>R_i</code>。用户没有开启自定义时，只选择 5 个默认核心指标；用户开启自定义后，只选择用户勾选的指标。最终权重按下面公式重新归一化：</p>
+      <div class="formula-box compact-formula">
+        <span>权重归一化公式</span>
+        <p class="formula">W<sub>i</sub> = R<sub>i</sub> / ΣR<sub>j</sub></p>
+        <p>其中 <code>j</code> 只遍历本次实际启用的指标。未勾选的可选指标不参与求和，也不会影响总分。若用户自定义时取消某个核心指标，该核心指标同样不进入总分。</p>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>场景</th><th>平滑</th><th>时序</th><th>数字</th><th>异常</th><th>漂移</th><th>变点</th><th>采样</th><th>物理</th><th>相关</th><th>适用重点</th></tr>
+            <tr><th>场景</th><th>采样</th><th>平滑</th><th>数字</th><th>异常</th><th>物理</th><th>时序</th><th>漂移</th><th>变点</th><th>相关</th><th>机器</th></tr>
           </thead>
           <tbody>
-            <tr><td>自动识别</td><td>18%</td><td>16%</td><td>13%</td><td>6%</td><td>14%</td><td>6%</td><td>4%</td><td>4%</td><td>19%</td><td>通用农业数据，保持均衡判断。</td></tr>
-            <tr><td>温室数据</td><td>16%</td><td>18%</td><td>8%</td><td>8%</td><td>16%</td><td>10%</td><td>8%</td><td>6%</td><td>10%</td><td>连续传感器更关注时序、漂移、变化点和采样完整性。</td></tr>
-            <tr><td>虫害调查</td><td>10%</td><td>8%</td><td>14%</td><td>12%</td><td>8%</td><td>14%</td><td>8%</td><td>14%</td><td>12%</td><td>计数和比例表更关注数字规律、物理规则、阶段变化和异常波动。</td></tr>
-            <tr><td>产量调查</td><td>10%</td><td>8%</td><td>12%</td><td>12%</td><td>8%</td><td>10%</td><td>10%</td><td>14%</td><td>16%</td><td>农艺调查更关注非负范围、变量关系和采样完整性。</td></tr>
-            <tr><td>农残检测</td><td>8%</td><td>6%</td><td>16%</td><td>12%</td><td>6%</td><td>10%</td><td>8%</td><td>20%</td><td>14%</td><td>检测数据更关注物理范围、单位、数字精度、异常点和变量关系。</td></tr>
+            <tr><td>自动识别</td><td>1.10</td><td>1.25</td><td>1.05</td><td>1.05</td><td>1.00</td><td>0.80</td><td>0.55</td><td>0.65</td><td>0.75</td><td>0.80</td></tr>
+            <tr><td>温室数据</td><td>1.10</td><td>1.10</td><td>0.65</td><td>0.90</td><td>0.90</td><td>1.00</td><td>1.00</td><td>0.80</td><td>0.70</td><td>0.90</td></tr>
+            <tr><td>虫害调查</td><td>1.00</td><td>0.60</td><td>1.10</td><td>1.00</td><td>1.05</td><td>0.45</td><td>0.25</td><td>0.85</td><td>0.70</td><td>0.65</td></tr>
+            <tr><td>产量调查</td><td>1.00</td><td>0.70</td><td>0.95</td><td>0.95</td><td>1.05</td><td>0.45</td><td>0.25</td><td>0.60</td><td>1.00</td><td>0.70</td></tr>
+            <tr><td>农残检测</td><td>0.90</td><td>0.55</td><td>1.15</td><td>1.00</td><td>1.25</td><td>0.30</td><td>0.20</td><td>0.55</td><td>0.85</td><td>0.75</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>举例：在“自动识别”场景下，如果用户选择默认 5 个核心指标并额外开启“机器学习异常识别”，参与归一化的系数为 <code>1.10 + 1.25 + 1.05 + 1.05 + 1.00 + 0.80 = 6.25</code>。因此机器学习指标权重为 <code>0.80 / 6.25 = 12.8%</code>，其余核心指标权重也会相应下降。检测结果页会显示每个指标本次实际采用的权重。</p>
+      <h3>必要指标与可选指标</h3>
+      <p>为了避免“所有数据都被迫跑全部指标”，系统默认只启用 5 个最关键、适用面最广的核心指标。时序自然性、传感器漂移、变化点、多变量相关性和机器学习异常识别保留为可选增强指标：只有当数据形态匹配时再开启。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>类型</th><th>指标</th><th>默认是否启用</th><th>适合什么数据</th></tr></thead>
+          <tbody>
+            <tr><td>核心</td><td>采样完整性</td><td>是</td><td>所有 CSV/Excel 原始数据，尤其是带时间列、多工作表、缺测或断点的数据。</td></tr>
+            <tr><td>核心</td><td>平滑度检测</td><td>是</td><td>传感器、产量、农残等连续或半连续数值。</td></tr>
+            <tr><td>核心</td><td>小数位/数字规律</td><td>是</td><td>连续测量值和人工记录表；计数型整数列会自动放宽整数扣分。</td></tr>
+            <tr><td>核心</td><td>异常点分布</td><td>是</td><td>大多数数值列，用于提示异常过多或过度干净。</td></tr>
+            <tr><td>核心</td><td>物理范围/单位</td><td>是</td><td>温度、湿度、降雨量、农残、产量、虫害计数等常见农业字段。</td></tr>
+            <tr><td>可选</td><td>时间序列自然性</td><td>否</td><td>连续按时间采集的数据，例如温室、气象、土壤传感器。</td></tr>
+            <tr><td>可选</td><td>传感器漂移</td><td>否</td><td>同一设备长期连续采集的数据；人工调查表通常不需要。</td></tr>
+            <tr><td>可选</td><td>变化点检测</td><td>否</td><td>怀疑换设备、换批次、改采样条件或阶段性农情变化的数据。</td></tr>
+            <tr><td>可选</td><td>多变量相关性</td><td>否</td><td>至少有两个有业务含义的数值列时建议开启；单变量文件不需要。</td></tr>
+            <tr><td>可选</td><td>机器学习异常识别</td><td>否</td><td>至少 20 行、至少 2 个有效数值特征的数据；无标签时作为辅助复核指标。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>规则场景与默认核心权重</h3>
+      <p>规则场景影响两件事：第一，物理范围与单位异常检测会按场景匹配不同字段规则；第二，总分汇总时会使用不同指标相对权重。若用户自定义指标，系统会只在已选择指标之间重新归一化权重。各指标子评分的计算公式不随场景改变。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>场景</th><th>采样</th><th>平滑</th><th>数字</th><th>异常</th><th>物理</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>自动识别</td><td>20.2%</td><td>22.9%</td><td>19.3%</td><td>19.3%</td><td>18.3%</td><td>通用农业数据，默认核心指标相对均衡。</td></tr>
+            <tr><td>温室数据</td><td>23.7%</td><td>23.7%</td><td>14.0%</td><td>19.4%</td><td>19.4%</td><td>默认核心仍保守；如确认为传感器连续数据，可自定义开启时序、漂移和变点。</td></tr>
+            <tr><td>虫害调查</td><td>21.1%</td><td>12.6%</td><td>23.2%</td><td>21.1%</td><td>22.1%</td><td>计数和比例表更关注数字规律、物理规则和异常波动。</td></tr>
+            <tr><td>产量调查</td><td>21.5%</td><td>15.1%</td><td>20.4%</td><td>20.4%</td><td>22.6%</td><td>农艺调查更关注非负范围、采样完整性和合理波动。</td></tr>
+            <tr><td>农残检测</td><td>18.6%</td><td>11.3%</td><td>23.7%</td><td>20.6%</td><td>25.8%</td><td>检测数据更关注物理范围、单位、数字精度和异常点。</td></tr>
           </tbody>
         </table>
       </div>
@@ -78,7 +119,7 @@
         </div>
         <div>
           <h3>缺失值处理</h3>
-          <p>系统不自动填补缺失值。数值列通过 <code>pandas.to_numeric(errors="coerce")</code> 清洗，不可解析内容转为缺失；单变量指标使用 <code>dropna()</code> 后的有效序列。</p>
+          <p>系统不改写原始数据，也不会把缺失值填回用户文件。数值列通过 <code>pandas.to_numeric(errors="coerce")</code> 清洗，不可解析内容转为缺失；单变量指标使用 <code>dropna()</code> 后的有效序列。机器学习指标为了形成模型矩阵，会在模型内部临时用中位数填补缺失特征，但该操作只用于计算，不改变原始数据和数据预览。</p>
         </div>
       </div>
       <div class="method-list compact-list">
@@ -92,8 +133,23 @@
     </section>
 
     <section id="principles" class="method-card">
-      <h2>九类检测指标如何计算</h2>
-      <p>每个合格数值列会执行数值类检测；采样完整性和物理规则按整个文件计算；多变量相关性在所有合格数值列之间计算。子评分会先汇总，再进入总分公式。</p>
+      <h2>核心与可选检测指标如何计算</h2>
+      <p>每个合格数值列只会执行本次启用的数值类检测；采样完整性、物理规则和机器学习异常识别按整个文件计算；多变量相关性只有在用户选择后才会在所有合格数值列之间计算。子评分会先汇总，再进入总分公式。</p>
+      <p>指标之间有联系，但用途不同：平滑度关注“过于机械平顺”，时间序列自然性关注“自相关和趋势结构”；异常点分布关注点级异常，变化点检测关注阶段性结构突变；机器学习异常识别关注多变量样本是否被多个模型共同判为异常。因此它们不全部默认启用，而是按数据类型选择。</p>
+      <h3>机器学习与其他指标的边界</h3>
+      <p>机器学习异常识别和部分统计指标存在交集，但不直接矛盾。它是“多变量行级辅助指标”，不替代默认核心指标，也不把同一个风险解释为确定结论。若用户同时开启多个相关指标，结果页会通过权重归一化降低单一指标对总分的影响。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>对比指标</th><th>是否有交集</th><th>主要区别</th><th>解读方式</th></tr></thead>
+          <tbody>
+            <tr><td>异常点分布</td><td>有</td><td>异常点分布是单列点级检测，机器学习是多列组合后的行级检测。</td><td>两者同时异常时，说明单列离群和多变量组合异常同时存在；不应简单当成两份完全独立证据。</td></tr>
+            <tr><td>多变量相关性</td><td>有少量交集</td><td>相关性检测看变量两两之间是否过强同步，机器学习看整行样本是否偏离整体多变量分布。</td><td>相关性适合发现复制列、线性推导列；机器学习适合发现“单列不离群但组合不合理”的样本。</td></tr>
+            <tr><td>时间序列自然性</td><td>基本不重复</td><td>时序自然性使用样本顺序和 ACF，机器学习默认不使用时间顺序。</td><td>连续传感器数据可同时开启；一个看时间结构，一个看多变量样本分布。</td></tr>
+            <tr><td>变化点/传感器漂移</td><td>基本不重复</td><td>变化点和漂移看阶段变化或长期基线迁移，机器学习看单行样本是否异常。</td><td>如果机器学习异常集中在某一段，再结合变化点或漂移复核采集条件变化。</td></tr>
+            <tr><td>小数位/数字规律</td><td>不重复</td><td>数字规律看尾数、小数位、固定刻度和重复值，机器学习不分析数字书写习惯。</td><td>数字规律更适合发现人工录入整齐性；机器学习更适合发现多变量组合异常。</td></tr>
+          </tbody>
+        </table>
+      </div>
       <div class="metric-accordion">
         <details open>
           <summary>1. 平滑度检测</summary>
@@ -231,23 +287,23 @@
 
         <details>
           <summary>7. 采样完整性检测</summary>
-          <p>目标是复核原始采集链路是否完整，重点关注时间间隔、重复时间戳、连续缺测和 Excel sheet 结构。没有时间列时不会直接判定高风险，但会提示无法复核采样完整性。</p>
+          <p>目标是复核原始采集链路是否完整，重点关注时间间隔、重复时间戳、连续缺测和 Excel 工作表结构。没有时间列时不会直接判定高风险，但会提示无法复核采样完整性。</p>
           <ul>
             <li>时间间隔 CV：<code>CV = std(Δt) / mean(Δt)</code>，衡量采样频率是否稳定。</li>
             <li>重复时间戳比例：统计重复时间点占比。</li>
             <li>断点数量：若某段间隔超过中位间隔的 3 倍，记为采样断点。</li>
             <li>最长连续缺测：按中位采样间隔估计 gap 中缺少的采样槽数量。</li>
-            <li>sheet 结构异常：多个 sheet 合并时，比较各 sheet 的有效字段集合差异。</li>
+            <li>工作表结构异常：多个工作表合并时，比较各工作表的有效字段集合差异。</li>
           </ul>
           <div class="formula-box compact-formula">
             <span>简化扣分公式</span>
-            <p class="formula">S<sub>采样</sub> = max(0, 100 - P<sub>dup</sub> - P<sub>cv</sub> - P<sub>gap</sub> - P<sub>miss</sub> - P<sub>sheet</sub>)</p>
+            <p class="formula">S<sub>采样</sub> = max(0, 100 - P<sub>dup</sub> - P<sub>cv</sub> - P<sub>gap</sub> - P<sub>miss</sub> - P<sub>table</sub>)</p>
             <dl class="symbol-list">
               <dt>P<sub>dup</sub></dt><dd>重复时间戳扣分。重复比例从 1% 到 10% 连续扣 0-22 分。</dd>
               <dt>P<sub>cv</sub></dt><dd>时间间隔波动扣分。时间间隔 CV 从 0.35 到 1.20 连续扣 0-22 分。</dd>
               <dt>P<sub>gap</sub></dt><dd>采样断点扣分。每个明显断点扣 4 分，最多扣 18 分。</dd>
               <dt>P<sub>miss</sub></dt><dd>最长连续缺测扣分。估计连续缺测槽从 2 到 12 个连续扣 0-14 分。</dd>
-              <dt>P<sub>sheet</sub></dt><dd>sheet 结构扣分。字段集合差异比例从 0.20 到 0.80 连续扣 0-14 分；空 sheet 会额外轻微扣分。</dd>
+              <dt>P<sub>table</sub></dt><dd>工作表结构扣分。字段集合差异比例从 0.20 到 0.80 连续扣 0-14 分；空工作表会额外轻微扣分。</dd>
             </dl>
           </div>
         </details>
@@ -293,6 +349,29 @@
             </dl>
           </div>
         </details>
+
+        <details>
+          <summary>10. 机器学习异常识别</summary>
+          <p>目标是在用户主动开启时，用传统机器学习模型补充统计规则。当前版本不训练“真/假分类器”，因为多数农业场景暂时缺少可靠标注；系统采用无监督异常检测，只判断多模型是否共同发现多变量异常样本。</p>
+          <ul>
+            <li>特征准备：只使用通过粗筛的数值列，缺失值用中位数填充，再用 <code>RobustScaler</code> 做稳健缩放。</li>
+            <li>模型集成：同时运行 <code>IsolationForest</code>、<code>LocalOutlierFactor</code> 和 <code>OneClassSVM</code>；为保证线上响应稳定，最多抽样 800 行进入模型计算。</li>
+            <li>模型共识：如果至少约三分之二模型把同一行判为异常，该行记为“模型共识异常”。</li>
+            <li>适用条件：至少 20 行、至少 2 个有效数值特征；单列数据仍建议主要查看异常点分布。</li>
+          </ul>
+          <div class="formula-box compact-formula">
+            <span>简化扣分公式</span>
+            <p class="formula">S<sub>机器</sub> = max(0, 100 - P<sub>consensus</sub> - P<sub>model</sub> - P<sub>disagree</sub> - P<sub>spread</sub> - P<sub>small</sub>)</p>
+            <p>机器学习分数只作为可选辅助指标。它不会覆盖传统统计指标，也不会给出“数据为假”的结论；当样本量不足或特征不足时，系统会降级提示。</p>
+            <dl class="symbol-list">
+              <dt>P<sub>consensus</sub></dt><dd>模型共识异常扣分。计算 <code>Rconsensus</code>，即被至少三分之二模型共同判为异常的样本比例。当 <code>Rconsensus <= 0.08</code> 时扣 0；从 0.08 升到 0.25 连续扣 0-35 分。</dd>
+              <dt>P<sub>model</sub></dt><dd>单模型异常比例过高扣分。计算三个模型中最高异常比例 <code>Rmax</code>。当 <code>Rmax <= 0.20</code> 时扣 0；从 0.20 升到 0.45 连续扣 0-18 分。</dd>
+              <dt>P<sub>disagree</sub></dt><dd>模型分歧扣分。计算 <code>Rdisagree</code>，即模型之间没有形成一致判断的样本比例。当 <code>Rdisagree <= 0.35</code> 时扣 0；从 0.35 升到 0.75 连续扣 0-12 分。</dd>
+              <dt>P<sub>spread</sub></dt><dd>异常比例跨度扣分。计算不同模型异常比例的最大差值 <code>Rspread</code>。当 <code>Rspread <= 0.12</code> 时扣 0；从 0.12 升到 0.35 连续扣 0-10 分。</dd>
+              <dt>P<sub>small</sub></dt><dd>样本量不足扣分。机器学习有效样本数从 50 降到 20 时，连续扣 0-10 分；少于 20 行时不做正式模型判断。</dd>
+            </dl>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -310,7 +389,10 @@
       <h2>研究与工程参考</h2>
       <p>当前版本优先采用可解释统计规则，并参考了近十年内常用的时间序列、漂移检测、异常检测和数据质量工程项目。以下链接用于说明方法来源和工程实现方向，不表示系统会直接照搬其中模型。</p>
       <div class="method-list compact-list">
-        <div><b>PyOD</b><span>Python 异常检测工具箱，论文发表于 JMLR 2019，当前系统的 IsolationForest 思路与异常检测模块可参考其模型体系。<a href="https://www.jmlr.org/papers/v20/19-011.html" target="_blank">论文</a> / <a href="https://github.com/yzhao062/pyod" target="_blank">GitHub</a></span></div>
+        <div><b>scikit-learn</b><span>当前机器学习增强指标直接使用 scikit-learn 的 IsolationForest、LocalOutlierFactor 和 OneClassSVM。<a href="https://scikit-learn.org/stable/modules/outlier_detection.html" target="_blank">文档</a></span></div>
+        <div><b>PyOD</b><span>Python 异常检测工具箱，论文发表于 JMLR 2019，包含大量传统和深度异常检测模型，适合作为后续模型库参考。<a href="https://www.jmlr.org/papers/v20/19-011.html" target="_blank">论文</a> / <a href="https://github.com/yzhao062/pyod" target="_blank">GitHub</a></span></div>
+        <div><b>ADBench</b><span>NeurIPS 2022 异常检测基准项目，比较无监督、半监督和监督异常检测方法，提示模型选择要结合数据特征和少量标注。<a href="https://github.com/Minqi824/ADBench" target="_blank">GitHub</a></span></div>
+        <div><b>Smart Agriculture Anomaly Detection</b><span>Agriculture 2021 智慧农业数据流异常检测研究，使用集成式异常检测思想处理农业场景中的点异常、上下文异常和群体异常。<a href="https://www.mdpi.com/2077-0472/11/11/1083" target="_blank">论文</a></span></div>
         <div><b>River</b><span>面向流式数据的 Python 机器学习库，论文发表于 JMLR 2021，ADWIN、Page-Hinkley 等漂移检测思想适合后续在线采集场景。<a href="https://www.jmlr.org/papers/v22/20-1380.html" target="_blank">论文</a> / <a href="https://github.com/online-ml/river" target="_blank">GitHub</a></span></div>
         <div><b>STUMPY</b><span>Matrix Profile 时间序列挖掘库，论文发表于 JOSS 2019，后续可用于发现局部异常片段和重复模式。<a href="https://joss.theoj.org/papers/10.21105/joss.01504" target="_blank">论文</a> / <a href="https://github.com/stumpy-dev/stumpy" target="_blank">GitHub</a></span></div>
         <div><b>Great Expectations</b><span>数据质量规则与校验工程项目，适合后续把不同农业场景规则做成可维护的规则库。<a href="https://github.com/great-expectations/great_expectations" target="_blank">GitHub</a></span></div>
@@ -320,9 +402,9 @@
 
     <section class="method-card">
       <h2>为什么第一版不直接加入复杂深度学习</h2>
-      <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此第一版采用统计规则和传统机器学习，优先保证可运行、可解释、可复核。后续如果有稳定历史数据和人工标注，再考虑加入时序预测、变化点模型或深度异常检测模型。</p>
+      <p>农业数据场景常常缺少高质量标注，且用户需要知道“为什么可疑”。因此当前版本把传统机器学习作为可选增强指标，不作为默认核心指标；后续如果有稳定历史数据和人工标注，再加入 RandomForest、XGBoost/LightGBM 或深度时序异常检测模型。</p>
     </section>
   </main>
-  <script src="assets/theme.js?v=20260523u"></script>
+  <script src="assets/theme.js?v=20260525f"></script>
 </body>
 </html>

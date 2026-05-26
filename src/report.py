@@ -3,10 +3,23 @@ from __future__ import annotations
 from datetime import datetime
 from html import escape
 from pathlib import Path
+import os
+import textwrap
+from uuid import uuid4
 
+os.environ.setdefault("MPLCONFIGDIR", str(Path.cwd() / ".mplconfig"))
+os.environ.setdefault("XDG_CACHE_HOME", str(Path.cwd() / ".cache"))
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
+from .indicator_config import INDICATOR_META
 from .profiler import DataProfile
 from .scoring import sub_scores_dataframe
 from .screening import ColumnScreening
+from .utils import configure_chinese_font
 
 
 def _format_metric_value(value: object) -> str:
@@ -51,7 +64,7 @@ def _screening_table(records: list[ColumnScreening] | None) -> str:
     )
     return f"""
     <h2>文件粗筛</h2>
-    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入九类可信度检测中的数值类指标。</p>
+    <p class="note">只有数值可解析率不低于 70%、有效唯一值不少于 3 个、且不是时间列的字段会进入所选可信度检测中的数值类指标。</p>
     <table>
       <thead>
         <tr>
@@ -82,7 +95,8 @@ def generate_html_report(
 ) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    html_path = reports_dir / f"trust_report_{timestamp}.html"
+    suffix = uuid4().hex[:6]
+    html_path = reports_dir / f"trust_report_{timestamp}_{suffix}.html"
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     numeric_columns = ", ".join(profile.numeric_columns) if profile.numeric_columns else "未识别"
     reasons = "\n".join(f"<li>{escape(reason)}</li>" for reason in analysis["reasons"])
@@ -91,6 +105,11 @@ def generate_html_report(
         analysis.get("weights"),
     ).to_html(index=False, escape=True)
     scenario_label = escape((scenario or {}).get("label", "自动识别"))
+    selected_indicators = analysis.get("selected_indicators", [])
+    selected_names = "、".join(
+        str(INDICATOR_META.get(key, {}).get("label", key)) for key in selected_indicators
+    ) or "默认核心指标"
+    selection_mode = escape(str(analysis.get("indicator_selection_mode", "默认核心指标")))
 
     column_sections: list[str] = []
     for col, checks in analysis["column_results"].items():
@@ -121,12 +140,20 @@ def generate_html_report(
             """
         )
 
-    correlation_reasons = "\n".join(
-        f"<li>{escape(reason)}</li>" for reason in analysis["correlation"].get("reasons", [])
-    )
-    correlation_charts = "\n".join(
-        _chart_img(chart, "相关性热力图") for chart in analysis["correlation"].get("charts", [])
-    )
+    correlation_block = ""
+    if not analysis["correlation"].get("skipped"):
+        correlation_reasons = "\n".join(
+            f"<li>{escape(reason)}</li>" for reason in analysis["correlation"].get("reasons", [])
+        )
+        correlation_charts = "\n".join(
+            _chart_img(chart, "相关性热力图") for chart in analysis["correlation"].get("charts", [])
+        )
+        correlation_block = f"""
+  <h2>多变量相关性</h2>
+  <p>评分：<strong>{analysis["correlation"]["score"]:.1f}</strong></p>
+  <ul>{correlation_reasons}</ul>
+  <div class="charts">{correlation_charts}</div>
+"""
     dataset_sections: list[str] = []
     for result in analysis.get("dataset_results", {}).values():
         result_reasons = "\n".join(f"<li>{escape(reason)}</li>" for reason in result.get("reasons", []))
@@ -184,6 +211,8 @@ def generate_html_report(
       <tr><th>数值列</th><td>{escape(numeric_columns)}</td></tr>
       <tr><th>缺失率</th><td>{profile.missing_rate:.2%}</td></tr>
       <tr><th>规则场景</th><td>{scenario_label}</td></tr>
+      <tr><th>指标模式</th><td>{selection_mode}</td></tr>
+      <tr><th>本次检测指标</th><td>{escape(selected_names)}</td></tr>
     </tbody>
   </table>
 
@@ -196,17 +225,113 @@ def generate_html_report(
   <ul>{reasons}</ul>
 
   <h2>分列检测详情</h2>
-  {''.join(column_sections)}
+  {''.join(column_sections) or '<p class="note">本次未选择需要按数值列逐列计算的指标。</p>'}
 
   <h2>数据集级检测详情</h2>
   {''.join(dataset_sections)}
 
-  <h2>多变量相关性</h2>
-  <p>评分：<strong>{analysis["correlation"]["score"]:.1f}</strong></p>
-  <ul>{correlation_reasons}</ul>
-  <div class="charts">{correlation_charts}</div>
+  {correlation_block}
 </body>
 </html>
 """
     html_path.write_text(html, encoding="utf-8")
     return html_path
+
+
+def _pdf_lines(text: object, width: int = 52) -> list[str]:
+    value = str(text)
+    if not value:
+        return [""]
+    lines: list[str] = []
+    for part in value.splitlines():
+        wrapped = textwrap.wrap(part, width=width, replace_whitespace=False)
+        lines.extend(wrapped or [""])
+    return lines
+
+
+def _add_pdf_text_page(
+    pdf: PdfPages,
+    title: str,
+    lines: list[str],
+    *,
+    footnote: str = "本报告仅提示可信度评分和可疑风险，不判断数据一定为假。",
+) -> None:
+    fig = plt.figure(figsize=(8.27, 11.69))
+    fig.patch.set_facecolor("white")
+    fig.text(0.08, 0.94, title, fontsize=20, weight="bold", color="#111827")
+    y = 0.90
+    for line in lines:
+        if y < 0.08:
+            fig.text(0.08, 0.04, footnote, fontsize=9, color="#6b7280")
+            pdf.savefig(fig, bbox_inches="tight")
+            plt.close(fig)
+            fig = plt.figure(figsize=(8.27, 11.69))
+            fig.patch.set_facecolor("white")
+            fig.text(0.08, 0.94, f"{title}（续）", fontsize=18, weight="bold", color="#111827")
+            y = 0.90
+        fig.text(0.08, y, line, fontsize=10.5, color="#1f2937")
+        y -= 0.026
+    fig.text(0.08, 0.04, footnote, fontsize=9, color="#6b7280")
+    pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+
+def generate_pdf_report(
+    analysis: dict,
+    profile: DataProfile,
+    source_name: str,
+    reports_dir: Path,
+    screening_records: list[ColumnScreening] | None = None,
+    scenario: dict | None = None,
+) -> Path:
+    configure_chinese_font()
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    suffix = uuid4().hex[:6]
+    pdf_path = reports_dir / f"trust_report_{timestamp}_{suffix}.pdf"
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    selected = analysis.get("selected_indicators", [])
+    selected_names = "、".join(
+        str(INDICATOR_META.get(key, {}).get("label", key)) for key in selected
+    )
+    weights = analysis.get("weights", {})
+
+    summary_lines: list[str] = []
+    for item in [
+        f"数据文件：{source_name}",
+        f"生成时间：{generated_at}",
+        f"规则场景：{(scenario or {}).get('label', '自动识别')}",
+        f"指标模式：{analysis.get('indicator_selection_mode', '默认核心指标')}",
+        f"本次检测指标：{selected_names}",
+        f"总可信度评分：{analysis['total_score']} / 100",
+        f"风险等级：{analysis['risk_level']}",
+        f"数据规模：{profile.rows} 行 × {profile.columns} 列",
+        f"时间列：{profile.time_column or '未识别'}",
+        f"数值列：{', '.join(profile.numeric_columns) if profile.numeric_columns else '未识别'}",
+        f"整体缺失率：{profile.missing_rate:.2%}",
+        "",
+        "主要可疑原因：",
+    ]:
+        summary_lines.extend(_pdf_lines(item))
+    for index, reason in enumerate(analysis.get("reasons", []), start=1):
+        summary_lines.extend(_pdf_lines(f"{index}. {reason}", width=58))
+
+    score_lines = ["指标子评分与当前权重："]
+    for key, value in analysis.get("sub_scores", {}).items():
+        label = INDICATOR_META.get(key, {}).get("label", key)
+        score_lines.append(f"{label}：{value:.2f} 分，权重 {weights.get(key, 0) * 100:.1f}%")
+    score_lines.append("")
+    score_lines.append("文件粗筛摘要：")
+    for item in (screening_records or [])[:40]:
+        status = "进入检测" if item.entered_analysis else "跳过"
+        score_lines.extend(
+            _pdf_lines(
+                f"{item.column}：{status}；角色={item.role}；缺失率={item.missing_rate:.2%}；处理={item.handling}",
+                width=62,
+            )
+        )
+
+    with PdfPages(pdf_path) as pdf:
+        _add_pdf_text_page(pdf, "农业原始数据可信度检测报告", summary_lines)
+        _add_pdf_text_page(pdf, "指标评分与文件粗筛", score_lines)
+    return pdf_path

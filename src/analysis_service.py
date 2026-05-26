@@ -13,7 +13,8 @@ import pandas as pd
 
 from .loader import load_data
 from .profiler import profile_data
-from .report import generate_html_report
+from .indicator_config import available_indicator_payload, resolve_indicator_selection
+from .report import generate_html_report, generate_pdf_report
 from .rule_config import scenario_info
 from .scoring import run_full_analysis, risk_level
 from .screening import ColumnScreening, screen_columns
@@ -232,15 +233,20 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
         "reasons": analysis["reasons"],
         "dataset_results": dataset_results,
         "column_results": column_results,
+        "selected_indicators": analysis.get("selected_indicators", []),
+        "available_indicators": analysis.get("available_indicators", available_indicator_payload()),
+        "indicator_selection_mode": analysis.get("indicator_selection_mode", "默认核心指标"),
+        "indicator_selection": analysis.get("indicator_selection", {}),
         "correlation": {
             "label": correlation.get("label", "多变量相关性检测"),
-            "score": round(float(correlation.get("score", 0)), 2),
+            "score": round(float(correlation.get("score")), 2) if correlation.get("score") is not None else None,
             "risk": correlation.get("risk"),
             "reasons": correlation.get("reasons", []),
             "metrics": _json_safe(correlation.get("metrics", {})),
             "charts": _chart_urls(correlation.get("charts", []), base_path),
             "pearson": _json_safe(pearson.round(4).to_dict()) if hasattr(pearson, "round") else {},
             "spearman": _json_safe(spearman.round(4).to_dict()) if hasattr(spearman, "round") else {},
+            "skipped": bool(correlation.get("skipped", False)),
         },
     }
 
@@ -252,11 +258,18 @@ def analyze_dataframe(
     base_path: str = "/agri-trust",
     record_stats: bool = False,
     scenario: str | None = "auto",
+    indicators: list[str] | str | None = None,
+    custom_indicators: bool = False,
 ) -> dict[str, Any]:
     prepared, profile = profile_data(df)
     screening_records = screen_columns(df, profile)
     profile_payload = _profile_payload(profile)
     scenario_payload = scenario_info(scenario)
+    selection_payload = resolve_indicator_selection(
+        scenario_payload["key"],
+        indicators,
+        custom_indicators,
+    )
 
     if not profile.numeric_columns:
         if record_stats:
@@ -267,13 +280,31 @@ def analyze_dataframe(
             "source_name": source_name,
             "profile": profile_payload,
             "scenario": scenario_payload,
+            "indicator_selection": selection_payload,
+            "available_indicators": selection_payload["available"],
+            "selected_indicators": selection_payload["selected"],
             "screening": _screening_payload(screening_records),
             "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
             "stats": load_usage_stats(reports_dir),
         }
 
-    analysis = run_full_analysis(prepared, profile, reports_dir, scenario_payload["key"])
+    analysis = run_full_analysis(
+        prepared,
+        profile,
+        reports_dir,
+        scenario_payload["key"],
+        indicators=indicators,
+        custom_indicators=custom_indicators,
+    )
     html_path = generate_html_report(
+        analysis,
+        profile,
+        source_name,
+        reports_dir,
+        screening_records=screening_records,
+        scenario=scenario_payload,
+    )
+    pdf_path = generate_pdf_report(
         analysis,
         profile,
         source_name,
@@ -292,6 +323,7 @@ def analyze_dataframe(
         "preview": _json_safe(prepared.head(30).to_dict(orient="records")),
         "analysis": _analysis_payload(analysis, base_path),
         "report_url": f"{base_path}/reports/{html_path.name}",
+        "pdf_report_url": f"{base_path}/reports/{pdf_path.name}",
         "stats": stats,
     }
 
@@ -303,6 +335,17 @@ def analyze_file_bytes(
     base_path: str = "/agri-trust",
     record_stats: bool = False,
     scenario: str | None = "auto",
+    indicators: list[str] | str | None = None,
+    custom_indicators: bool = False,
 ) -> dict[str, Any]:
     df = load_data(BytesIO(content), filename)
-    return analyze_dataframe(df, filename, reports_dir, base_path, record_stats=record_stats, scenario=scenario)
+    return analyze_dataframe(
+        df,
+        filename,
+        reports_dir,
+        base_path,
+        record_stats=record_stats,
+        scenario=scenario,
+        indicators=indicators,
+        custom_indicators=custom_indicators,
+    )

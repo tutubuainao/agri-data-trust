@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from uuid import uuid4
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path.cwd() / ".mplconfig"))
 os.environ.setdefault("XDG_CACHE_HOME", str(Path.cwd() / ".cache"))
@@ -59,7 +60,7 @@ def analyze_correlations(df: pd.DataFrame, numeric_columns: list[str], reports_d
 
     charts: list[str] = []
     reports_dir.mkdir(parents=True, exist_ok=True)
-    chart_path = reports_dir / "correlation_heatmap.png"
+    chart_path = reports_dir / f"correlation_heatmap_{uuid4().hex[:8]}.png"
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.imshow(pearson.fillna(0), vmin=-1, vmax=1, cmap="coolwarm")
     ax.set_xticks(range(len(numeric_columns)), numeric_columns, rotation=45, ha="right")

@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>农业数据可信度检测</title>
-  <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "dark";</script>
-  <link rel="stylesheet" href="assets/styles.css?v=20260523u">
+  <script>document.documentElement.dataset.theme = localStorage.getItem("agri-trust-theme") || "light";</script>
+  <link rel="stylesheet" href="assets/styles.css?v=20260525f">
 </head>
 <body>
   <div id="app" class="trust-app" v-cloak>
     <header class="shell-header">
-      <a class="brand" href="/agri-trust/">
+      <a class="brand" href="/agri-trust/" @click.prevent="clearResult">
         <span class="brand-mark"></span>
-        <span>Agri Data Trust</span>
+        <span>农业数据可信度检测</span>
       </a>
       <nav>
         <a href="/agri-trust/methodology#scoring">评分标准</a>
@@ -20,83 +20,146 @@
         <a href="http://39.106.238.181/">作品集首页</a>
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深浅色主题">
           <span class="theme-dot"></span>
-          <span data-theme-label>Dark</span>
+          <span data-theme-label>Light</span>
         </button>
       </nav>
     </header>
 
     <main>
-      <section class="hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow">FastAPI + Vue · 农业数据风险分析</p>
-          <h1>农业原始数据可信度检测系统</h1>
-          <p class="hero-lead">上传 CSV 或 Excel，系统自动粗筛字段并执行九类可信度检测，输出可信度评分、风险解释、图表和 HTML 报告。结果只提示复核风险，不判定数据一定为假。</p>
-          <div class="scenario-picker">
-            <label for="scenario">规则场景</label>
-            <select id="scenario" v-model="scenario">
-              <option v-for="item in scenarioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-            <span>{{ selectedScenarioDescription }}</span>
+      <section v-if="!hasResult" class="landing-shell">
+        <section class="product-hero">
+          <h1>农业原始数据可信度检测</h1>
+          <p class="hero-lead">上传 CSV 或 Excel 格式的农业传感器数据、调查表、产量记录、农残检测表，系统会自动完成字段粗筛、可信度评分、风险解释和报告生成。</p>
+          <div class="process-steps">
+            <span>1 选择场景</span>
+            <span>2 选择指标</span>
+            <span>3 上传分析</span>
+            <span>4 下载报告</span>
           </div>
-          <p class="scenario-note">规则场景会影响两件事：物理范围与单位规则的匹配方式，以及九类指标汇总为总分时的权重。各子评分仍按同一套公式计算，便于复核。</p>
-          <div class="hero-actions">
-            <label class="primary-action">
-              <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
-              上传数据并分析
-            </label>
-            <button class="ghost-action" @click="loadSample('real')">真实示例</button>
-            <button class="ghost-action" @click="loadSample('fake')">平滑示例</button>
-          </div>
-          <div class="status-line" :class="{error: error}">
-            <span v-if="loading">正在分析数据，请稍候...</span>
-            <span v-else-if="error">{{ error }}</span>
-            <span v-else-if="result && result.ok">已完成：{{ result.source_name }}</span>
-            <span v-else-if="result">粗筛完成：未识别到可分析的数值列</span>
-            <span v-else>请上传数据开始分析。支持 CSV、XLSX、XLS；系统只输出风险线索，不判断“真假”。</span>
-          </div>
-        </div>
-
-        <aside class="hero-panel" :class="riskClass">
-          <div class="panel-top">
-            <span></span><span></span><span></span>
-          </div>
-          <div class="score-orbit">
-            <div class="score-ring" :style="scoreStyle">
-              <div class="score-core">
-                <span>可信度评分</span>
-                <strong :class="{'score-text-small': result && !result.ok}">{{ totalScore }}</strong>
-                <em>满分 100</em>
-              </div>
-            </div>
-            <div>
-              <p>当前可信度评分</p>
-              <h2>{{ riskLevel }}</h2>
-              <small>{{ scoreSubtitle }}</small>
-            </div>
-          </div>
-          <div v-if="result && !result.ok" class="no-data-warning">
-            未识别到可分析的数值列。请检查数据是否包含足够的连续数值字段后重新提交。
-          </div>
-          <div class="mini-bars">
-            <div v-for="item in subScoreItems" :key="item.key">
-              <span>{{ item.short }}</span>
-              <i><b :style="{width: item.score + '%'}"></b></i>
-              <em>{{ item.score }}</em>
-            </div>
-          </div>
-          <div v-if="loading || progress" class="progress-box">
-            <div class="progress-track"><i :style="{width: progress + '%'}"></i></div>
-            <span>{{ progressText }}</span>
-          </div>
-          <div v-if="stats" class="stats-strip">
+          <div v-if="stats" class="stats-strip checker-stats">
             <div><strong>{{ stats.files_analyzed || 0 }}</strong><span>已分析文件</span></div>
             <div><strong>{{ stats.rows_analyzed || 0 }}</strong><span>累计数据行</span></div>
-            <div><strong>{{ stats.sheets_analyzed || 0 }}</strong><span>累计 sheet</span></div>
+            <div><strong>{{ stats.sheets_analyzed || 0 }}</strong><span>累计工作表</span></div>
           </div>
-        </aside>
+        </section>
+
+        <section class="upload-workbench">
+          <div class="workbench-head">
+            <span class="section-title">检测设置</span>
+            <h2>先设置规则，再上传数据</h2>
+            <p>上传文件会立即开始分析，所以请先确认规则场景和检测指标。默认配置适合大多数农业原始数据，需要更细的场景判断时再开启自定义指标。</p>
+          </div>
+
+          <div class="form-steps">
+            <article class="form-step">
+              <div class="step-index">01</div>
+              <div class="step-body">
+                <h3>选择规则场景</h3>
+                <p>场景会影响物理范围、单位规则和总分权重。拿不准时保留“自动识别”。</p>
+                <div class="scenario-control">
+                  <label for="scenario">规则场景</label>
+                  <select id="scenario" v-model="scenario">
+                    <option v-for="item in scenarioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+                  </select>
+                  <span>{{ selectedScenarioDescription }}</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="form-step">
+              <div class="step-index">02</div>
+              <div class="step-body">
+                <div class="indicator-mode">
+                  <div>
+                    <h3>选择检测指标</h3>
+                    <span>{{ selectionModeText }}：{{ selectedIndicatorNames }}</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" v-model="customIndicators">
+                    <i></i>
+                    <span>自定义</span>
+                  </label>
+                </div>
+
+                <div v-if="!customIndicators" class="indicator-note">
+                  默认启用 5 个核心指标：采样完整性、平滑度、数字规律、异常点分布、物理范围/单位。连续传感器数据可以开启时序、漂移和变化点；多变量表可以开启相关性和机器学习异常识别。
+                </div>
+                <div v-if="customIndicators" class="indicator-note">
+                  自定义后，系统只对已勾选指标重新分配权重；未勾选指标不进入总分。
+                </div>
+
+                <div v-if="customIndicators" class="indicator-select-grid">
+                  <button
+                    v-for="item in indicatorCatalog"
+                    :key="item.key"
+                    type="button"
+                    class="indicator-option"
+                    :class="{selected: isIndicatorSelected(item.key)}"
+                    @click="toggleIndicator(item.key)"
+                  >
+                    <span>{{ item.group }}</span>
+                    <b>{{ item.label }}</b>
+                    <em>{{ item.applicability }}</em>
+                  </button>
+                  <button class="ghost-action reset-indicators" type="button" @click="resetIndicators">恢复默认核心指标</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="form-step upload-step-card">
+              <div class="step-index">03</div>
+              <div class="step-body">
+                <h3>上传数据文件</h3>
+                <p>支持 CSV、XLSX、XLS。Excel 多个非空工作表会按行合并，并保留工作表来源字段。</p>
+                <label class="upload-drop">
+                  <input type="file" accept=".csv,.xlsx,.xls" @change="handleUpload">
+                  <strong>选择文件并开始分析</strong>
+                  <span>系统会按当前规则场景和指标配置生成结果</span>
+                </label>
+                <div class="status-line" :class="{error: error}">
+                  <span v-if="loading">正在分析数据，请稍候...</span>
+                  <span v-else-if="error">{{ error }}</span>
+                  <span v-else>请先确认上方设置，再上传数据文件。</span>
+                </div>
+                <div v-if="loading || progress" class="progress-box">
+                  <div class="progress-track"><i :style="{width: progress + '%'}"></i></div>
+                  <span>{{ progressText }}</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
       </section>
 
-      <section v-if="result" class="summary-grid">
+      <section v-if="hasResult" id="result-view" class="result-shell" :class="riskClass">
+        <div class="result-hero">
+          <div class="score-ring" :style="scoreStyle">
+            <div class="score-core">
+              <span>可信度评分</span>
+              <strong :class="{'score-text-small': result && !result.ok}">{{ totalScore }}</strong>
+              <em>满分 100</em>
+            </div>
+          </div>
+          <div class="result-title">
+            <p class="eyebrow">检测结果</p>
+            <h1>{{ result.ok ? riskLevel : '未识别到可分析数值列' }}</h1>
+            <p v-if="result.ok">评分越高表示当前规则下复核风险越低；本结果仅作为数据质量复核线索。</p>
+            <p v-else>{{ result.message }}</p>
+            <div class="result-tags">
+              <span>{{ result.source_name }}</span>
+              <span>{{ result.scenario?.label || selectedScenarioLabel }}</span>
+              <span>{{ result.analysis?.indicator_selection_mode || result.indicator_selection?.mode || selectionModeText }}</span>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button class="primary-action" type="button" @click="clearResult">返回上传新数据</button>
+            <a v-if="result.ok && result.pdf_report_url" class="ghost-action" :href="result.pdf_report_url" target="_blank" download>下载 PDF 报告</a>
+            <a v-if="result.ok" class="ghost-action" :href="result.report_url" target="_blank">打开网页报告</a>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="hasResult" class="summary-grid">
         <article class="metric-card">
           <span>数据文件</span>
           <strong>{{ result.source_name }}</strong>
@@ -119,8 +182,8 @@
         </article>
       </section>
 
-      <section v-if="result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length" class="glass-section sheet-note">
-        <span class="section-title">Excel Sheet 处理</span>
+      <section v-if="hasResult && (result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length)" class="glass-section sheet-note">
+        <span class="section-title">Excel 工作表处理</span>
         <p>{{ sheetMergeText }}</p>
       </section>
 
@@ -130,23 +193,48 @@
           <ul>
             <li v-for="reason in result.analysis.reasons" :key="reason">{{ reason }}</li>
           </ul>
-          <a class="download-report" :href="result.report_url" target="_blank">打开 HTML 报告</a>
+          <a class="download-report secondary-link no-margin" :href="result.report_url" target="_blank">打开网页报告</a>
+          <a v-if="result.pdf_report_url" class="download-report pdf-link" :href="result.pdf_report_url" target="_blank" download>下载 PDF 报告</a>
         </aside>
 
         <div class="content-stack">
+          <section class="glass-section">
+            <div class="section-head">
+              <div>
+                <span class="section-title">指标得分</span>
+                <h2>各部分得分与权重</h2>
+                <p class="section-desc">总分只按本次启用的指标计算，未启用指标不会影响结果。</p>
+              </div>
+            </div>
+            <div class="score-bar-list">
+              <article v-for="item in subScoreItems" :key="item.key" class="score-bar-card">
+                <div class="score-bar-head">
+                  <div>
+                    <span>{{ item.label }}</span>
+                    <small>{{ item.risk }}<template v-if="item.weight !== null"> · 权重 {{ pct(item.weight) }}</template></small>
+                  </div>
+                  <strong>{{ item.score }}</strong>
+                </div>
+                <div class="score-bar-track">
+                  <i :style="{width: item.score + '%', background: scoreColor(item.score)}"></i>
+                </div>
+              </article>
+            </div>
+          </section>
+
           <section v-if="previewRows.length" class="glass-section">
             <div class="section-head">
               <div>
                 <span class="section-title">数据预览</span>
                 <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
-                <p class="section-desc">用于确认文件是否被正确读取。Excel 多 sheet 文件会在合并后预览，系统添加的 <code>__sheet__</code> 表示该行来源 sheet。</p>
+                <p class="section-desc">用于确认文件是否被正确读取。Excel 多工作表文件会在合并后预览，并显示每行来自哪个工作表。</p>
               </div>
             </div>
             <div class="table-wrap preview-wrap">
               <table class="preview-table">
                 <thead>
                   <tr>
-                    <th v-for="column in previewColumns" :key="column">{{ column }}</th>
+                    <th v-for="column in previewColumns" :key="column">{{ displayColumnName(column) }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -186,44 +274,12 @@
             </div>
           </section>
 
-          <section class="glass-section">
-            <div class="section-head">
-              <div>
-                <span class="section-title">指标详情</span>
-                <h2>九类检测子评分</h2>
-              </div>
-            </div>
-            <div class="indicator-grid">
-              <article v-for="item in subScoreItems" :key="item.key" class="indicator-card">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.score }}</strong>
-                <small>{{ item.risk }}<template v-if="item.weight !== null"> · 权重 {{ pct(item.weight) }}</template></small>
-              </article>
-            </div>
-          </section>
-
-          <section v-if="weightItems.length" class="glass-section">
-            <div class="section-head">
-              <div>
-                <span class="section-title">当前规则场景权重</span>
-                <h2>{{ result.scenario?.label || selectedScenarioLabel }}的总分权重</h2>
-                <p class="section-desc">这些权重只影响总分汇总；每个指标的子评分仍按评分标准页面中的固定公式计算。</p>
-              </div>
-            </div>
-            <div class="weight-grid">
-              <article v-for="item in weightItems" :key="item.key" class="weight-card">
-                <span>{{ item.label }}</span>
-                <strong>{{ pct(item.weight) }}</strong>
-              </article>
-            </div>
-          </section>
-
           <section v-if="datasetCheckItems.length" class="glass-section">
             <div class="section-head">
               <div>
                 <span class="section-title">数据集级检测</span>
                 <h2>采样完整性与物理规则</h2>
-                <p class="section-desc">这些指标基于整个文件计算，主要复核时间戳、sheet 结构、常见农业物理范围和单位风险。</p>
+                <p class="section-desc">这些指标基于整个文件计算，主要复核时间戳、工作表结构、常见农业物理范围和单位风险。</p>
               </div>
             </div>
             <div class="column-grid">
@@ -240,7 +296,7 @@
             </div>
           </section>
 
-          <section class="glass-section">
+          <section v-if="Object.keys(result.analysis.column_results || {}).length" class="glass-section">
             <div class="section-head">
               <div>
                 <span class="section-title">分列分析</span>
@@ -250,6 +306,10 @@
             <div class="column-grid">
               <article v-for="(checks, col) in result.analysis.column_results" :key="col" class="column-card">
                 <h3>{{ col }}</h3>
+                <div v-if="Object.keys(checks).length === 0" class="check-row">
+                  <div><b>未启用逐列指标</b><p>本次只选择了数据集级指标。</p></div>
+                  <strong>—</strong>
+                </div>
                 <div v-for="check in checks" :key="check.label" class="check-row">
                   <div>
                     <b>{{ check.label }}</b>
@@ -261,7 +321,7 @@
             </div>
           </section>
 
-          <section class="glass-section">
+          <section v-if="chartItems.length" class="glass-section">
             <div class="section-head">
               <div>
                 <span class="section-title">图表输出</span>
@@ -282,9 +342,25 @@
         </div>
       </section>
 
-      <section v-if="result && !result.ok" class="glass-section">
+      <section v-if="result && !result.ok" class="glass-section no-analysis-card">
         <div class="section-title">文件粗筛结果</div>
+        <h2>无法生成可信度评分</h2>
         <p class="empty-message">{{ result.message }}</p>
+        <button class="primary-action no-analysis-action" type="button" @click="clearResult">返回上传新数据</button>
+        <div v-if="previewRows.length" class="table-wrap preview-wrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th v-for="column in previewColumns" :key="column">{{ displayColumnName(column) }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
+                <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -298,31 +374,8 @@
           </table>
         </div>
       </section>
-
-      <section v-if="result && !result.ok && previewRows.length" class="glass-section">
-        <div class="section-head">
-          <div>
-            <span class="section-title">数据预览</span>
-            <h2>系统读取到的前 {{ previewRows.length }} 行</h2>
-            <p class="section-desc">用于确认文件是否被正确读取。当前文件未识别到可分析数值列，但仍可查看原始读取结果。</p>
-          </div>
-        </div>
-        <div class="table-wrap preview-wrap">
-          <table class="preview-table">
-            <thead>
-              <tr>
-                <th v-for="column in previewColumns" :key="column">{{ column }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, rowIndex) in previewRows" :key="rowIndex">
-                <td v-for="column in previewColumns" :key="column">{{ previewValue(row, column) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
     </main>
+
     <div v-if="alertMessage" class="modal-backdrop" @click.self="clearAlert">
       <div class="alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="alert-title">
         <span class="section-title">文件粗筛提醒</span>
@@ -334,7 +387,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
-  <script src="assets/theme.js?v=20260523u"></script>
-  <script src="assets/app.js?v=20260523u"></script>
+  <script src="assets/theme.js?v=20260525f"></script>
+  <script src="assets/app.js?v=20260525f"></script>
 </body>
 </html>
