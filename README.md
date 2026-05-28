@@ -54,8 +54,6 @@ uvicorn api_app:app --reload --host 127.0.0.1 --port 8501
 
 浏览器打开 `http://127.0.0.1:8501/agri-trust/` 后，可以上传自己的 CSV/Excel 文件。页面不会默认分析示例数据；需要测试时可上传 `data/` 目录中的示例文件。
 
-旧版 Streamlit 页面仍保留在 `app.py`，用于对照和回退；线上默认使用 `api_app.py`。
-
 ## 线上部署
 
 服务器已配置 SSH key 后，可在本地一键部署：
@@ -91,15 +89,12 @@ https://github.com/tutubuainao/agri-data-trust
 
 ```text
 agri-data-trust/
-├── app.py
 ├── api_app.py
 ├── requirements.txt
 ├── README.md
 ├── data/
 │   ├── sample_real.csv
 │   └── sample_fake.csv
-├── pages/
-│   └── 01_methodology.py
 ├── src/
 │   ├── analysis_service.py
 │   ├── indicator_config.py
@@ -119,7 +114,6 @@ agri-data-trust/
 │   ├── correlation.py
 │   ├── scoring.py
 │   ├── report.py
-│   ├── ui.py
 │   └── utils.py
 ├── web/
 │   ├── index.html

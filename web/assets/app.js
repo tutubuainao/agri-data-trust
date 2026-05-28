@@ -1,16 +1,7 @@
 const { createApp } = Vue;
 
 const indicatorCatalog = [
-  {
-    key: "sampling",
-    label: "采样完整性",
-    short: "采样",
-    group: "可选质量指标",
-    default: false,
-    applicability: "适合连续采集、有明确时间列、多工作表或需要复核采样链路的数据；普通人工调查表可不默认启用。",
-    reason: "复核文件结构、时间间隔、重复时间戳和连续缺测，但它更偏数据质量链路，不作为默认核心可信度证据。",
-  },
-  {
+{
     key: "smoothness",
     label: "平滑度检测",
     short: "平滑",
@@ -19,7 +10,7 @@ const indicatorCatalog = [
     applicability: "适合连续测量值、产量测量值和农残浓度等数值列。",
     reason: "识别过度平滑、固定步长和变化率过稳的集体异常模式。",
   },
-  {
+{
     key: "digit",
     label: "小数位/数字规律",
     short: "数字",
@@ -28,7 +19,7 @@ const indicatorCatalog = [
     applicability: "适合连续测量值和人工记录表；计数型整数列会自动放宽整数相关扣分。",
     reason: "检查整数比例、小数位、末位数字、固定刻度和重复值。",
   },
-  {
+{
     key: "outlier",
     label: "异常点分布",
     short: "异常",
@@ -37,7 +28,7 @@ const indicatorCatalog = [
     applicability: "适合大多数数值列，完全没有异常点或异常点过多都会作为复核线索。",
     reason: "关注点级异常和自然波动，不把“过度干净”自动视为更可信。",
   },
-  {
+{
     key: "physical",
     label: "有效性/物理范围与单位",
     short: "物理",
@@ -46,7 +37,16 @@ const indicatorCatalog = [
     applicability: "适合温度、湿度、降雨量、农残、产量、虫害计数等常见字段。",
     reason: "用可配置农业规则做有效性校验，提示超范围、疑似单位错用和规则覆盖不足。",
   },
-  {
+{
+    key: "sampling",
+    label: "采样完整性",
+    short: "采样",
+    group: "可选质量指标",
+    default: false,
+    applicability: "适合连续采集、有明确时间列、多工作表或需要复核采样链路的数据；普通人工调查表可不默认启用。",
+    reason: "复核文件结构、时间间隔、重复时间戳和连续缺测，但它更偏数据质量链路，不作为默认核心可信度证据。",
+  },
+{
     key: "timeseries",
     label: "时间序列自然性",
     short: "时序",
@@ -55,7 +55,7 @@ const indicatorCatalog = [
     applicability: "更适合按时间连续采集的数据，如温室环境、土壤墒情、气象传感器。",
     reason: "检查自相关、ACF、趋势反转和周期线索；与平滑度相关但不等价。",
   },
-  {
+{
     key: "drift",
     label: "传感器漂移",
     short: "漂移",
@@ -64,7 +64,7 @@ const indicatorCatalog = [
     applicability: "建议用于同一设备长期连续采集的数据；人工调查表通常不需要。",
     reason: "识别基线缓慢偏移、前后窗口均值变化和 CUSUM 累积偏差。",
   },
-  {
+{
     key: "changepoint",
     label: "变化点检测",
     short: "变点",
@@ -73,7 +73,7 @@ const indicatorCatalog = [
     applicability: "适合怀疑换设备、换批次、改采样条件或阶段性农情变化的数据。",
     reason: "关注段级均值/分布突变；与异常点分布有交集，但异常点偏点级，变化点偏阶段结构。",
   },
-  {
+{
     key: "correlation",
     label: "多变量相关性",
     short: "相关",
@@ -82,7 +82,7 @@ const indicatorCatalog = [
     applicability: "至少有两个有业务含义的数值列时建议开启；单变量文件不需要。",
     reason: "检查 Pearson/Spearman 过强相关和近乎复制列。",
   },
-  {
+{
     key: "ml_anomaly",
     label: "机器学习异常识别",
     short: "机器",

@@ -6,11 +6,11 @@ from typing import Any
 
 
 ALL_INDICATORS = (
-    "sampling",
     "smoothness",
     "digit",
     "outlier",
     "physical",
+    "sampling",
     "timeseries",
     "drift",
     "changepoint",
