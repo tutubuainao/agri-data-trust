@@ -85,6 +85,36 @@ def _screening_table(records: list[ColumnScreening] | None) -> str:
     """
 
 
+def _sheet_analysis_block(analysis: dict) -> str:
+    sheet_analysis = analysis.get("sheet_analysis") or {}
+    items = sheet_analysis.get("items") or []
+    if not items:
+        return ""
+    rows = "\n".join(
+        f"""
+        <tr>
+          <td>{escape(str(item.get("sheet", "")))}</td>
+          <td>{item.get("rows", 0)}</td>
+          <td>{escape("、".join(item.get("numeric_columns", [])) or "未识别")}</td>
+          <td>{escape("是" if item.get("skipped") else "否")}</td>
+          <td>{escape("-" if item.get("total_score") is None else str(item.get("total_score")))}</td>
+          <td>{escape(str(item.get("risk_level") or item.get("message") or ""))}</td>
+        </tr>
+        """
+        for item in items
+    )
+    return f"""
+    <h2>Excel 工作表评价</h2>
+    <p class="note">{escape(str(sheet_analysis.get("summary", "")))}</p>
+    <table>
+      <thead>
+        <tr><th>工作表</th><th>行数</th><th>数值检测列</th><th>是否跳过</th><th>评分</th><th>说明</th></tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    """
+
+
 def generate_html_report(
     analysis: dict,
     profile: DataProfile,
@@ -217,6 +247,7 @@ def generate_html_report(
   </table>
 
   {_screening_table(screening_records)}
+  {_sheet_analysis_block(analysis)}
 
   <h2>指标评分</h2>
   {score_table}
@@ -315,6 +346,18 @@ def generate_pdf_report(
         summary_lines.extend(_pdf_lines(item))
     for index, reason in enumerate(analysis.get("reasons", []), start=1):
         summary_lines.extend(_pdf_lines(f"{index}. {reason}", width=58))
+    sheet_analysis = analysis.get("sheet_analysis") or {}
+    if sheet_analysis.get("items"):
+        summary_lines.extend(_pdf_lines(""))
+        summary_lines.extend(_pdf_lines(f"工作表处理：{sheet_analysis.get('summary', '')}", width=58))
+        for item in sheet_analysis.get("items", []):
+            score_text = "跳过" if item.get("skipped") else f"{item.get('total_score')} 分"
+            summary_lines.extend(
+                _pdf_lines(
+                    f"{item.get('sheet')}：{item.get('rows')} 行，{score_text}，数值列 {len(item.get('numeric_columns', []))} 个",
+                    width=58,
+                )
+            )
 
     score_lines = ["指标子评分与当前权重："]
     for key, value in analysis.get("sub_scores", {}).items():

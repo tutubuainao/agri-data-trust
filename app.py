@@ -132,7 +132,7 @@ with overview_tab:
         unsafe_allow_html=True,
     )
 
-    st.subheader("五项指标子评分")
+    st.subheader("本次启用指标子评分")
     st.dataframe(sub_scores_dataframe(analysis["sub_scores"]), use_container_width=True, hide_index=True)
 
     st.subheader("可疑原因解释")

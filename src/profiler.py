@@ -28,6 +28,8 @@ class DataProfile:
     sheet_names: list[str] | None = None
     used_sheets: list[str] | None = None
     skipped_sheets: list[str] | None = None
+    sheet_strategy: dict | None = None
+    sheet_summaries: list[dict] | None = None
 
 
 def detect_time_column(df: pd.DataFrame) -> str | None:
@@ -92,8 +94,24 @@ def prepare_dataframe(df: pd.DataFrame, time_column: str | None, numeric_columns
 def profile_data(df: pd.DataFrame) -> tuple[pd.DataFrame, DataProfile]:
     time_column = detect_time_column(df)
     numeric_columns = detect_numeric_columns(df, time_column)
+    sheet_strategy = df.attrs.get("sheet_strategy") or {}
+    if sheet_strategy.get("mode") == "separate":
+        sheet_numeric_columns: list[str] = []
+        sheet_frames = df.attrs.get("sheet_frames") or {}
+        for frame in sheet_frames.values() if isinstance(sheet_frames, dict) else []:
+            if not isinstance(frame, pd.DataFrame):
+                continue
+            sheet_time_column = detect_time_column(frame)
+            for col in detect_numeric_columns(frame, sheet_time_column):
+                if col not in sheet_numeric_columns:
+                    sheet_numeric_columns.append(col)
+        if sheet_numeric_columns:
+            numeric_columns = sheet_numeric_columns
     prepared = prepare_dataframe(df, time_column, numeric_columns)
-    missing_rate = float(np.mean(prepared.isna().to_numpy())) if prepared.size else 0.0
+    meaningful = prepared.dropna(axis=1, how="all")
+    if "__sheet__" in meaningful.columns:
+        meaningful = meaningful.drop(columns=["__sheet__"])
+    missing_rate = float(np.mean(meaningful.isna().to_numpy())) if meaningful.size else 0.0
     return prepared, DataProfile(
         time_column=time_column,
         numeric_columns=numeric_columns,
@@ -103,4 +121,6 @@ def profile_data(df: pd.DataFrame) -> tuple[pd.DataFrame, DataProfile]:
         sheet_names=df.attrs.get("sheet_names"),
         used_sheets=df.attrs.get("used_sheets"),
         skipped_sheets=df.attrs.get("skipped_sheets"),
+        sheet_strategy=sheet_strategy,
+        sheet_summaries=df.attrs.get("sheet_summaries"),
     )

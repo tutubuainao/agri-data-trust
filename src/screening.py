@@ -62,7 +62,7 @@ def screen_columns(df: pd.DataFrame, profile: DataProfile) -> list[ColumnScreeni
         if non_null_count == 0:
             role = "空列"
             entered = False
-            handling = "整列为空，不进入可信度指标计算；在数据概况中体现为缺失。"
+            handling = "整列为空，不进入可信度指标计算，也不作为可疑风险扣分。"
         elif col == SHEET_COLUMN:
             role = "Sheet 来源列"
             entered = False

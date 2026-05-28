@@ -32,6 +32,8 @@ COLUMN_INDICATORS = {
     "changepoint": ("变化点检测", analyze_changepoints),
 }
 
+CORE_GUARDRAIL_INDICATORS = ("smoothness", "digit", "outlier", "physical")
+
 def indicator_weights_for_scenario(
     scenario: str | None,
     indicators: list[str] | None = None,
@@ -45,6 +47,26 @@ def risk_level(score: float) -> str:
     if score >= 50:
         return "中风险"
     return "高风险"
+
+
+def apply_core_score_guardrail(
+    total_score: float,
+    sub_scores: dict[str, float],
+    selected_indicators: list[str],
+) -> tuple[float, str | None]:
+    core_scores = [
+        float(sub_scores[key])
+        for key in CORE_GUARDRAIL_INDICATORS
+        if key in selected_indicators and key in sub_scores
+    ]
+    if not core_scores:
+        return total_score, None
+    min_core = min(core_scores)
+    if min_core < 35 and total_score > 59.99:
+        return 59.99, "存在默认核心指标低于 35 分，总分上限调整为 59.99，避免单项严重风险被其他高分完全抵消。"
+    if min_core < 50 and total_score > 69.99:
+        return 69.99, "存在默认核心指标低于 50 分，总分上限调整为 69.99，避免单项高风险被其他高分完全抵消。"
+    return total_score, None
 
 
 def run_full_analysis(
@@ -88,7 +110,7 @@ def run_full_analysis(
 
     if "physical" in selected_indicators:
         physical_result = analyze_physical_rules(df, numeric_columns, scenario)
-        physical_result["label"] = "物理范围与单位检测"
+        physical_result["label"] = "有效性/物理范围与单位检测"
         dataset_results["physical"] = physical_result
         sub_scores["physical"] = round(float(physical_result["score"]), 2)
 
@@ -114,10 +136,16 @@ def run_full_analysis(
         }
 
     weights = weights_for_selection(scenario, selected_indicators)
-    total_score = round(
+    raw_total_score = round(
         sum(sub_scores[key] * weights[key] for key in weights if key in sub_scores),
         2,
     )
+    total_score, guardrail_reason = apply_core_score_guardrail(
+        raw_total_score,
+        sub_scores,
+        selected_indicators,
+    )
+    total_score = round(total_score, 2)
     selected_payload = {
         "mode": selection["mode"],
         "selected": selected_indicators,
@@ -126,9 +154,13 @@ def run_full_analysis(
         "optional": selection["optional"],
     }
     reasons = collect_top_reasons(column_results, correlation_result, dataset_results)
+    if guardrail_reason:
+        reasons.insert(0, guardrail_reason)
 
     return {
         "total_score": total_score,
+        "raw_total_score": raw_total_score,
+        "score_adjustment": guardrail_reason,
         "risk_level": risk_level(total_score),
         "weights": weights,
         "sub_scores": sub_scores,
@@ -183,7 +215,7 @@ def sub_scores_dataframe(sub_scores: dict[str, float], weights: dict[str, float]
         "drift": "传感器漂移检测",
         "changepoint": "变化点检测",
         "sampling": "采样完整性检测",
-        "physical": "物理范围与单位检测",
+        "physical": "有效性/物理范围与单位检测",
         "correlation": "多变量相关性检测",
         "ml_anomaly": "机器学习异常识别",
     }

@@ -82,7 +82,7 @@
                 </div>
 
                 <div v-if="!customIndicators" class="indicator-note">
-                  默认启用 5 个核心指标：采样完整性、平滑度、数字规律、异常点分布、物理范围/单位。连续传感器数据可以开启时序、漂移和变化点；多变量表可以开启相关性和机器学习异常识别。
+                  默认启用 4 个核心可信度指标：有效性/物理范围与单位、异常点分布、数字规律、平滑度。采样完整性保留为可选低权重质量指标；连续传感器数据可以开启时序、漂移和变化点；多变量表可以开启相关性和机器学习异常识别。
                 </div>
                 <div v-if="customIndicators" class="indicator-note">
                   自定义后，系统只对已勾选指标重新分配权重；未勾选指标不进入总分。
@@ -185,6 +185,22 @@
       <section v-if="hasResult && (result?.profile?.used_sheets?.length || result?.profile?.skipped_sheets?.length)" class="glass-section sheet-note">
         <span class="section-title">Excel 工作表处理</span>
         <p>{{ sheetMergeText }}</p>
+        <div v-if="sheetAnalysisItems.length" class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr><th>工作表</th><th>行数</th><th>数值列</th><th>评分</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in sheetAnalysisItems" :key="item.sheet">
+                <td>{{ item.sheet }}</td>
+                <td>{{ item.rows }}</td>
+                <td>{{ (item.numeric_columns || []).length }}</td>
+                <td>{{ item.skipped ? '跳过' : item.total_score }}</td>
+                <td>{{ item.skipped ? item.message : item.risk_level }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section v-if="result?.ok" class="workspace">
@@ -278,8 +294,8 @@
             <div class="section-head">
               <div>
                 <span class="section-title">数据集级检测</span>
-                <h2>采样完整性与物理规则</h2>
-                <p class="section-desc">这些指标基于整个文件计算，主要复核时间戳、工作表结构、常见农业物理范围和单位风险。</p>
+                <h2>文件质量与有效性规则</h2>
+                <p class="section-desc">这些指标基于整个文件或工作表计算，主要复核采样链路、工作表结构、常见农业物理范围和单位风险；未启用的可选指标不会进入总分。</p>
               </div>
             </div>
             <div class="column-grid">

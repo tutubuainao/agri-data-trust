@@ -13,10 +13,10 @@ import pandas as pd
 
 from .loader import load_data
 from .profiler import profile_data
-from .indicator_config import available_indicator_payload, resolve_indicator_selection
+from .indicator_config import available_indicator_payload, resolve_indicator_selection, weights_for_selection
 from .report import generate_html_report, generate_pdf_report
 from .rule_config import scenario_info
-from .scoring import run_full_analysis, risk_level
+from .scoring import apply_core_score_guardrail, collect_top_reasons, run_full_analysis, risk_level
 from .screening import ColumnScreening, screen_columns
 
 
@@ -54,6 +54,8 @@ def _profile_payload(profile) -> dict[str, Any]:
         "sheet_names": profile.sheet_names or [],
         "used_sheets": profile.used_sheets or [],
         "skipped_sheets": profile.skipped_sheets or [],
+        "sheet_strategy": profile.sheet_strategy or {},
+        "sheet_summaries": profile.sheet_summaries or [],
     }
 
 
@@ -218,6 +220,8 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
 
     return {
         "total_score": round(float(analysis["total_score"]), 2),
+        "raw_total_score": round(float(analysis.get("raw_total_score", analysis["total_score"])), 2),
+        "score_adjustment": analysis.get("score_adjustment"),
         "risk_level": analysis["risk_level"],
         "weights": {
             key: round(float(value), 4)
@@ -237,6 +241,7 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
         "available_indicators": analysis.get("available_indicators", available_indicator_payload()),
         "indicator_selection_mode": analysis.get("indicator_selection_mode", "默认核心指标"),
         "indicator_selection": analysis.get("indicator_selection", {}),
+        "sheet_analysis": _json_safe(analysis.get("sheet_analysis", {})),
         "correlation": {
             "label": correlation.get("label", "多变量相关性检测"),
             "score": round(float(correlation.get("score")), 2) if correlation.get("score") is not None else None,
@@ -249,6 +254,222 @@ def _analysis_payload(analysis: dict[str, Any], base_path: str = "/agri-trust") 
             "skipped": bool(correlation.get("skipped", False)),
         },
     }
+
+
+def _sheet_frame_items(df: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
+    frames = df.attrs.get("sheet_frames") or {}
+    if not isinstance(frames, dict):
+        return []
+    return [(str(name), frame.copy()) for name, frame in frames.items() if isinstance(frame, pd.DataFrame)]
+
+
+def _prefix_reasons(sheet_name: str, reasons: list[str], limit: int = 5) -> list[str]:
+    return [f"{sheet_name}: {reason}" for reason in reasons[:limit]]
+
+
+def _aggregate_dataset_results(sheet_items: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    values: list[tuple[float, int, dict[str, Any], str]] = []
+    for item in sheet_items:
+        analysis = item.get("analysis") or {}
+        result = (analysis.get("dataset_results") or {}).get(key)
+        if result:
+            values.append((float(result.get("score", 0)), int(item["rows"]), result, str(item["sheet"])))
+    if not values:
+        return None
+
+    total_rows = sum(max(rows, 1) for _, rows, _, _ in values)
+    score = round(sum(score * max(rows, 1) for score, rows, _, _ in values) / total_rows, 2)
+    reasons: list[str] = []
+    per_sheet_scores: dict[str, float] = {}
+    label = values[0][2].get("label", key)
+    charts: list[str] = []
+    for sheet_score, _, result, sheet_name in values:
+        per_sheet_scores[sheet_name] = round(sheet_score, 2)
+        reasons.extend(_prefix_reasons(sheet_name, result.get("reasons", []), limit=3))
+        charts.extend(result.get("charts", [])[:2])
+    if not reasons:
+        reasons.append("各工作表未发现明显数据集级风险。")
+    return {
+        "label": label,
+        "score": score,
+        "risk": "ok" if score >= 70 else "attention",
+        "reasons": reasons[:10],
+        "metrics": {
+            "aggregation": "按各 sheet 有效行数加权平均",
+            "per_sheet_scores": per_sheet_scores,
+        },
+        "charts": charts[:6],
+    }
+
+
+def _aggregate_separate_sheet_analysis(
+    df: pd.DataFrame,
+    reports_dir: Path,
+    scenario: str,
+    indicators: list[str] | str | None,
+    custom_indicators: bool,
+    sheet_strategy: dict[str, Any],
+) -> dict[str, Any] | None:
+    sheet_items: list[dict[str, Any]] = []
+    for sheet_name, frame in _sheet_frame_items(df):
+        prepared_sheet, profile_sheet = profile_data(frame)
+        if not profile_sheet.numeric_columns:
+            sheet_items.append(
+                {
+                    "sheet": sheet_name,
+                    "rows": len(prepared_sheet),
+                    "numeric_columns": [],
+                    "skipped": True,
+                    "message": "未识别到可分析数值列，未纳入分 sheet 汇总。",
+                }
+            )
+            continue
+        sheet_analysis = run_full_analysis(
+            prepared_sheet,
+            profile_sheet,
+            reports_dir,
+            scenario,
+            indicators=indicators,
+            custom_indicators=custom_indicators,
+        )
+        sheet_items.append(
+            {
+                "sheet": sheet_name,
+                "rows": len(prepared_sheet),
+                "numeric_columns": profile_sheet.numeric_columns,
+                "skipped": False,
+                "analysis": sheet_analysis,
+                "total_score": sheet_analysis["total_score"],
+                "risk_level": sheet_analysis["risk_level"],
+                "reasons": sheet_analysis.get("reasons", [])[:5],
+            }
+        )
+
+    analyzable = [item for item in sheet_items if not item.get("skipped") and item.get("analysis")]
+    if not analyzable:
+        return None
+
+    selected = analyzable[0]["analysis"].get("selected_indicators", [])
+    weights = weights_for_selection(scenario, selected)
+    total_rows = sum(max(int(item["rows"]), 1) for item in analyzable)
+    sub_scores: dict[str, float] = {}
+    for key in selected:
+        values = [
+            (float(item["analysis"]["sub_scores"][key]), max(int(item["rows"]), 1))
+            for item in analyzable
+            if key in item["analysis"].get("sub_scores", {})
+        ]
+        if values:
+            sub_scores[key] = round(sum(score * rows for score, rows in values) / sum(rows for _, rows in values), 2)
+
+    raw_total_score = round(sum(sub_scores[key] * weights.get(key, 0) for key in sub_scores), 2)
+    total_score, guardrail_reason = apply_core_score_guardrail(raw_total_score, sub_scores, selected)
+    total_score = round(total_score, 2)
+    column_results: dict[str, dict[str, Any]] = {}
+    dataset_results: dict[str, dict[str, Any]] = {}
+    for item in analyzable:
+        sheet_name = str(item["sheet"])
+        for col, checks in item["analysis"].get("column_results", {}).items():
+            column_results[f"{sheet_name} / {col}"] = checks
+
+    for key in selected:
+        aggregated = _aggregate_dataset_results(analyzable, key)
+        if aggregated:
+            dataset_results[key] = aggregated
+
+    if "correlation" in selected:
+        correlation_values = [
+            (float(item["analysis"]["correlation"]["score"]), max(int(item["rows"]), 1), item)
+            for item in analyzable
+            if not item["analysis"].get("correlation", {}).get("skipped")
+            and item["analysis"].get("correlation", {}).get("score") is not None
+        ]
+        if correlation_values:
+            corr_rows = sum(rows for _, rows, _ in correlation_values)
+            corr_score = round(sum(score * rows for score, rows, _ in correlation_values) / corr_rows, 2)
+            correlation_result = {
+                "label": "多变量相关性检测",
+                "score": corr_score,
+                "risk": "ok" if corr_score >= 70 else "attention",
+                "reasons": [
+                    reason
+                    for _, _, item in correlation_values
+                    for reason in _prefix_reasons(str(item["sheet"]), item["analysis"]["correlation"].get("reasons", []), limit=3)
+                ][:10],
+                "metrics": {
+                    "aggregation": "按各 sheet 有效行数加权平均",
+                    "per_sheet_scores": {
+                        str(item["sheet"]): round(score, 2) for score, _, item in correlation_values
+                    },
+                },
+                "charts": [
+                    chart
+                    for _, _, item in correlation_values
+                    for chart in item["analysis"]["correlation"].get("charts", [])[:2]
+                ][:6],
+                "skipped": False,
+            }
+        else:
+            correlation_result = {
+                "label": "多变量相关性检测",
+                "score": None,
+                "risk": "skipped",
+                "reasons": ["各工作表未满足多变量相关性检测条件。"],
+                "metrics": {},
+                "charts": [],
+                "skipped": True,
+            }
+    else:
+        correlation_result = {
+            "label": "多变量相关性检测",
+            "score": None,
+            "risk": "skipped",
+            "reasons": ["当前未选择多变量相关性检测。"],
+            "metrics": {},
+            "charts": [],
+            "skipped": True,
+        }
+
+    sheet_summary_items = [
+        {
+            "sheet": item["sheet"],
+            "rows": item["rows"],
+            "numeric_columns": item.get("numeric_columns", []),
+            "skipped": bool(item.get("skipped")),
+            "message": item.get("message", ""),
+            "total_score": round(float(item["total_score"]), 2) if "total_score" in item else None,
+            "risk_level": item.get("risk_level"),
+            "reasons": item.get("reasons", []),
+        }
+        for item in sheet_items
+    ]
+    indicator_selection = analyzable[0]["analysis"].get("indicator_selection", {})
+    analysis = {
+        "total_score": total_score,
+        "raw_total_score": raw_total_score,
+        "score_adjustment": guardrail_reason,
+        "risk_level": risk_level(total_score),
+        "weights": weights,
+        "sub_scores": sub_scores,
+        "indicator_selection": indicator_selection,
+        "selected_indicators": selected,
+        "available_indicators": indicator_selection.get("available", available_indicator_payload()),
+        "indicator_selection_mode": indicator_selection.get("mode", "默认核心指标"),
+        "column_results": column_results,
+        "dataset_results": dataset_results,
+        "correlation": correlation_result,
+        "sheet_analysis": {
+            "mode": "separate",
+            "strategy": sheet_strategy,
+            "summary": "工作表字段结构差异较大，系统已先分 sheet 评价，再按各 sheet 有效行数加权汇总总分。",
+            "items": sheet_summary_items,
+        },
+        "reasons": [],
+    }
+    analysis["reasons"] = collect_top_reasons(column_results, correlation_result, dataset_results)
+    if guardrail_reason:
+        analysis["reasons"].insert(0, guardrail_reason)
+    return analysis
 
 
 def analyze_dataframe(
@@ -271,7 +492,19 @@ def analyze_dataframe(
         custom_indicators,
     )
 
-    if not profile.numeric_columns:
+    sheet_strategy = profile.sheet_strategy or {}
+    analysis = None
+    if sheet_strategy.get("mode") == "separate":
+        analysis = _aggregate_separate_sheet_analysis(
+            df,
+            reports_dir,
+            scenario_payload["key"],
+            indicators,
+            custom_indicators,
+            sheet_strategy,
+        )
+
+    if not profile.numeric_columns and analysis is None:
         if record_stats:
             record_usage(reports_dir, source_name, profile_payload)
         return {
@@ -288,14 +521,15 @@ def analyze_dataframe(
             "stats": load_usage_stats(reports_dir),
         }
 
-    analysis = run_full_analysis(
-        prepared,
-        profile,
-        reports_dir,
-        scenario_payload["key"],
-        indicators=indicators,
-        custom_indicators=custom_indicators,
-    )
+    if analysis is None:
+        analysis = run_full_analysis(
+            prepared,
+            profile,
+            reports_dir,
+            scenario_payload["key"],
+            indicators=indicators,
+            custom_indicators=custom_indicators,
+        )
     html_path = generate_html_report(
         analysis,
         profile,

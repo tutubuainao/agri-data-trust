@@ -5,10 +5,10 @@ const indicatorCatalog = [
     key: "sampling",
     label: "采样完整性",
     short: "采样",
-    group: "默认核心指标",
-    default: true,
-    applicability: "适合所有 CSV/Excel 原始文件，尤其是带时间列、多工作表或有缺测的数据。",
-    reason: "先复核文件结构、时间间隔、重复时间戳和连续缺测，避免后续评分建立在明显不完整的数据上。",
+    group: "可选质量指标",
+    default: false,
+    applicability: "适合连续采集、有明确时间列、多工作表或需要复核采样链路的数据；普通人工调查表可不默认启用。",
+    reason: "复核文件结构、时间间隔、重复时间戳和连续缺测，但它更偏数据质量链路，不作为默认核心可信度证据。",
   },
   {
     key: "smoothness",
@@ -17,7 +17,7 @@ const indicatorCatalog = [
     group: "默认核心指标",
     default: true,
     applicability: "适合连续测量值、产量测量值和农残浓度等数值列。",
-    reason: "识别过度平滑、固定步长和变化率过稳的模式。",
+    reason: "识别过度平滑、固定步长和变化率过稳的集体异常模式。",
   },
   {
     key: "digit",
@@ -39,12 +39,12 @@ const indicatorCatalog = [
   },
   {
     key: "physical",
-    label: "物理范围/单位",
+    label: "有效性/物理范围与单位",
     short: "物理",
     group: "默认核心指标",
     default: true,
     applicability: "适合温度、湿度、降雨量、农残、产量、虫害计数等常见字段。",
-    reason: "用可配置农业规则提示超范围、疑似单位错用和规则覆盖不足。",
+    reason: "用可配置农业规则做有效性校验，提示超范围、疑似单位错用和规则覆盖不足。",
   },
   {
     key: "timeseries",
@@ -180,7 +180,7 @@ createApp({
       selectedIndicators: [...defaultIndicators],
       indicatorCatalog,
       scenarioOptions: [
-        { value: "auto", label: "自动识别", description: "通用农业规则，默认只启用最关键的 5 个核心指标" },
+        { value: "auto", label: "自动识别", description: "通用农业规则，默认只启用最关键的 4 个核心可信度指标" },
         { value: "greenhouse", label: "温室数据", description: "物理规则更偏向温室环境字段；自定义时可开启时序、漂移和变化点" },
         { value: "pest", label: "虫害调查", description: "物理规则更偏向卵量、幼虫、成虫、诱捕量和寄生率" },
         { value: "yield", label: "产量调查", description: "物理规则更偏向产量、面积、株高、重量等非负农艺指标" },
@@ -286,16 +286,23 @@ createApp({
     sheetMergeText() {
       const used = this.result?.profile?.used_sheets || [];
       const skipped = this.result?.profile?.skipped_sheets || [];
+      const strategy = this.result?.profile?.sheet_strategy || {};
       if (!used.length && !skipped.length) return "";
       const parts = [];
-      if (used.length > 1) {
-        parts.push(`系统已将 ${used.length} 个非空工作表按行纵向合并：${used.join("、")}。`);
-        parts.push("合并时保留工作表来源字段，并按列名对齐；某个工作表没有的字段会留空，再由粗筛和缺失值逻辑处理。");
+      if (strategy.mode === "separate") {
+        parts.push(`系统识别到 ${used.length} 个非空工作表：${used.join("、")}。`);
+        parts.push("这些工作表字段结构差异较大，系统已分工作表评价，再按有效行数加权汇总总分，避免把不同调查表强行合并。");
+      } else if (used.length > 1) {
+        parts.push(`系统识别到 ${used.length} 个非空工作表：${used.join("、")}。`);
+        parts.push("这些工作表字段结构相近，已按行纵向合并评价；合并时保留工作表来源字段，并按列名对齐。");
       } else if (used.length === 1) {
         parts.push(`系统识别到 1 个可分析工作表：${used[0]}。`);
       }
-      if (skipped.length) parts.push(`空工作表已跳过：${skipped.join("、")}。`);
+      if (skipped.length) parts.push(`空工作表已忽略且不参与评分：${skipped.join("、")}。`);
       return parts.join("");
+    },
+    sheetAnalysisItems() {
+      return this.result?.analysis?.sheet_analysis?.items || [];
     },
     datasetCheckItems() {
       return Object.entries(this.result?.analysis?.dataset_results || {}).map(([key, item]) => ({
