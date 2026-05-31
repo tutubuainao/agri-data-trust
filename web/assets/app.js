@@ -175,6 +175,7 @@ createApp({
       progressText: "",
       progressTimer: null,
       alertMessage: "",
+      navOpen: false,
       scenario: "auto",
       customIndicators: false,
       selectedIndicators: [...defaultIndicators],
@@ -448,6 +449,7 @@ createApp({
       }
     },
     clearResult() {
+      this.navOpen = false;
       this.result = null;
       this.error = "";
       this.alertMessage = "";
@@ -476,6 +478,25 @@ createApp({
     displayColumnName(column) {
       return column === "__sheet__" ? "工作表来源" : column;
     },
+    _setupRevealObserver() {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      this._revealObs = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              this._revealObs.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.08, rootMargin: "0px 0px -18px 0px" }
+      );
+      this._observeRevealElements();
+    },
+    _observeRevealElements() {
+      if (!this._revealObs) return;
+      document.querySelectorAll(".reveal:not(.visible)").forEach((el) => this._revealObs.observe(el));
+    },
   },
   mounted() {
     try {
@@ -496,5 +517,11 @@ createApp({
       }
     });
     this.loadStats();
+    this._setupRevealObserver();
+  },
+  watch: {
+    result() {
+      this.$nextTick(() => this._observeRevealElements());
+    },
   },
 }).mount("#app");
